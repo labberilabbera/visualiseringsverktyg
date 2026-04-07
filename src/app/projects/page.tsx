@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+const ADMIN_EMAIL = "tor@flodet.se";
 type Project = { id: string; name: string; count: number; updated: string };
 
 export default function ProjectsPage() {
@@ -51,6 +52,8 @@ export default function ProjectsPage() {
   }
 
   if (!ready) return null;
+
+  const isAdmin = userEmail === ADMIN_EMAIL;
 
   const s = {
     main: { minHeight: "100vh", background: "var(--bg)", fontFamily: "system-ui, sans-serif", color: "var(--text)", display: "flex", flexDirection: "column" as const },
@@ -133,24 +136,18 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      <div style={{ padding: "1rem 2rem", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
+      <div style={{ padding: "1rem 2rem", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" as const }}>
         <p style={{ color: "var(--text2)", fontSize: "0.8rem", margin: 0 }}>Inloggad som {userEmail}</p>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ fontSize: "0.75rem", color: "var(--text2)" }}>{isDark ? "Mörkt" : "Ljust"}</span>
-            <button
-              onClick={toggleTheme}
-              style={{
-                width: "44px", height: "24px", borderRadius: "12px", border: "none", cursor: "pointer", position: "relative",
-                background: isDark ? "#1a56db" : "#ccc", transition: "background 0.2s", padding: 0,
-              }}
-            >
-              <span style={{
-                position: "absolute", top: "2px", left: isDark ? "22px" : "2px",
-                width: "20px", height: "20px", borderRadius: "50%", background: "white",
-                transition: "left 0.2s", display: "block",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-              }}/>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
+          {isAdmin && (
+            <button onClick={() => router.push("/admin")} style={{ ...s.btnGhost, fontSize: "0.75rem", padding: "0.3rem 0.7rem", borderColor: "#1a56db", color: "#6ea8fe" }}>
+              Admin
+            </button>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={{ fontSize: "0.72rem", color: "var(--text2)" }}>{isDark ? "Mörkt" : "Ljust"}</span>
+            <button onClick={toggleTheme} style={{ width: "40px", height: "22px", borderRadius: "11px", border: "none", cursor: "pointer", position: "relative", background: isDark ? "#1a56db" : "#ccc", padding: 0 }}>
+              <span style={{ position: "absolute", top: "2px", left: isDark ? "20px" : "2px", width: "18px", height: "18px", borderRadius: "50%", background: "white", transition: "left 0.2s", display: "block", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }}/>
             </button>
           </div>
           <button onClick={logout} style={s.btnGhost}>Logga ut</button>
