@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 type Project = { id: string; name: string; count: number; updated: string };
@@ -10,6 +10,24 @@ export default function ProjectsPage() {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<Project | null>(null);
+  const [userEmail, setUserEmail] = useState("");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const loggedIn = sessionStorage.getItem("loggedIn");
+    if (!loggedIn) {
+      router.replace("/login");
+      return;
+    }
+    setUserEmail(sessionStorage.getItem("userEmail") || "");
+    setReady(true);
+  }, [router]);
+
+  function logout() {
+    sessionStorage.removeItem("loggedIn");
+    sessionStorage.removeItem("userEmail");
+    router.replace("/login");
+  }
 
   function createProject() {
     if (!newName.trim()) return;
@@ -25,6 +43,8 @@ export default function ProjectsPage() {
     setProjects(projects.filter((p) => p.id !== confirmDelete.id));
     setConfirmDelete(null);
   }
+
+  if (!ready) return null;
 
   return (
     <main style={{ minHeight: "100vh", background: "#0f0f0f", fontFamily: "system-ui, sans-serif", color: "white", display: "flex", flexDirection: "column" }}>
@@ -49,14 +69,7 @@ export default function ProjectsPage() {
         {showNew && (
           <div style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "12px", padding: "1.25rem", marginBottom: "1rem" }}>
             <p style={{ fontSize: "0.875rem", color: "#aaa", marginBottom: "0.75rem" }}>Projektnamn</p>
-            <input
-              autoFocus
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && createProject()}
-              placeholder="T.ex. Trähantverk"
-              style={{ width: "100%", padding: "0.625rem 0.75rem", background: "#111", border: "1px solid #333", borderRadius: "8px", color: "white", fontSize: "0.875rem", outline: "none", boxSizing: "border-box", marginBottom: "0.75rem" }}
-            />
+            <input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && createProject()} placeholder="T.ex. Trähantverk" style={{ width: "100%", padding: "0.625rem 0.75rem", background: "#111", border: "1px solid #333", borderRadius: "8px", color: "white", fontSize: "0.875rem", outline: "none", boxSizing: "border-box", marginBottom: "0.75rem" }}/>
             <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
               <button onClick={() => { setShowNew(false); setNewName(""); }} style={{ padding: "0.5rem 0.875rem", background: "transparent", color: "#aaa", border: "1px solid #444", borderRadius: "8px", fontSize: "0.8rem", cursor: "pointer" }}>Avbryt</button>
               <button onClick={createProject} style={{ padding: "0.5rem 0.875rem", background: "#1a56db", color: "white", border: "none", borderRadius: "8px", fontSize: "0.8rem", fontWeight: 500, cursor: "pointer" }}>Skapa</button>
@@ -74,10 +87,7 @@ export default function ProjectsPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {projects.map((proj) => (
             <div key={proj.id} style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "12px", padding: "1rem 1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <button
-                onClick={() => router.push("/projects/" + proj.id)}
-                style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", flex: 1, padding: 0 }}
-              >
+              <button onClick={() => router.push("/projects/" + proj.id)} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", flex: 1, padding: 0 }}>
                 <p style={{ color: "white", fontWeight: 500, fontSize: "0.9375rem", margin: "0 0 0.25rem" }}>{proj.name}</p>
                 <p style={{ color: "#888", fontSize: "0.8rem", margin: 0 }}>{proj.count} objekt · {proj.updated}</p>
               </button>
@@ -85,11 +95,7 @@ export default function ProjectsPage() {
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ cursor: "pointer" }} onClick={() => router.push("/projects/" + proj.id)}>
                   <path d="M6 4l4 4-4 4" stroke="#555" strokeWidth="1.5" strokeLinecap="round"/>
                 </svg>
-                <button
-                  onClick={() => setConfirmDelete(proj)}
-                  title="Radera projekt"
-                  style={{ background: "transparent", border: "1px solid #3a2020", borderRadius: "6px", padding: "0.25rem 0.5rem", cursor: "pointer", display: "flex", alignItems: "center" }}
-                >
+                <button onClick={() => setConfirmDelete(proj)} title="Radera projekt" style={{ background: "transparent", border: "1px solid #3a2020", borderRadius: "6px", padding: "0.25rem 0.5rem", cursor: "pointer", display: "flex", alignItems: "center" }}>
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                     <path d="M2 3.5h10M5.5 3.5V2.5h3v1M4.5 3.5l.5 8h4l.5-8" stroke="#c44" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
@@ -116,8 +122,8 @@ export default function ProjectsPage() {
       )}
 
       <div style={{ padding: "1rem 2rem", borderTop: "1px solid #222", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={{ color: "#999", fontSize: "0.8rem", margin: 0 }}>Inloggad som tor@flodet.se</p>
-        <button onClick={() => router.push("/login")} style={{ background: "transparent", border: "1px solid #444", color: "#ccc", fontSize: "0.8rem", cursor: "pointer", padding: "0.375rem 0.75rem", borderRadius: "6px" }}>
+        <p style={{ color: "#999", fontSize: "0.8rem", margin: 0 }}>Inloggad som {userEmail}</p>
+        <button onClick={logout} style={{ background: "transparent", border: "1px solid #444", color: "#ccc", fontSize: "0.8rem", cursor: "pointer", padding: "0.375rem 0.75rem", borderRadius: "6px" }}>
           Logga ut
         </button>
       </div>
