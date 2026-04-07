@@ -55,7 +55,7 @@ export default function ProjectsPage() {
               style={{ width: "100%", padding: "0.625rem 0.75rem", background: "#111", border: "1px solid #333", borderRadius: "8px", color: "white", fontSize: "0.875rem", outline: "none", boxSizing: "border-box", marginBottom: "0.75rem" }}
             />
             <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-              <button onClick={() => setShowNew(false)} style={{ padding: "0.5rem 0.875rem", background: "transparent", color: "#888", border: "1px solid #333", borderRadius: "8px", fontSize: "0.8rem", cursor: "pointer" }}>Avbryt</button>
+              <button onClick={() => setShowNew(false)} style={{ padding: "0.5rem 0.875rem", background: "transparent", color: "#aaa", border: "1px solid #444", borderRadius: "8px", fontSize: "0.8rem", cursor: "pointer" }}>Avbryt</button>
               <button onClick={createProject} style={{ padding: "0.5rem 0.875rem", background: "#1a56db", color: "white", border: "none", borderRadius: "8px", fontSize: "0.8rem", fontWeight: 500, cursor: "pointer" }}>Skapa</button>
             </div>
           </div>
@@ -70,19 +70,24 @@ export default function ProjectsPage() {
             >
               <div>
                 <p style={{ color: "white", fontWeight: 500, fontSize: "0.9375rem", margin: "0 0 0.25rem" }}>{proj.name}</p>
-                <p style={{ color: "#555", fontSize: "0.8rem", margin: 0 }}>{proj.count} objekt · {proj.updated}</p>
+                <p style={{ color: "#888", fontSize: "0.8rem", margin: 0 }}>{proj.count} objekt · {proj.updated}</p>
               </div>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M6 4l4 4-4 4" stroke="#555" strokeWidth="1.5" strokeLinecap="round"/>
+                <path d="M6 4l4 4-4 4" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             </button>
           ))}
         </div>
       </div>
 
-      <div style={{ padding: "1rem 2rem", borderTop: "1px solid #1a1a1a", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={{ color: "#444", fontSize: "0.8rem", margin: 0 }}>Inloggad som tor@flodet.se</p>
-        <button onClick={() => router.push("/login")} style={{ background: "transparent", border: "none", color: "#555", fontSize: "0.8rem", cursor: "pointer" }}>Logga ut</button>
+      <div style={{ padding: "1rem 2rem", borderTop: "1px solid #222", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <p style={{ color: "#999", fontSize: "0.8rem", margin: 0 }}>Inloggad som tor@flodet.se</p>
+        <button
+          onClick={() => router.push("/login")}
+          style={{ background: "transparent", border: "1px solid #444", color: "#ccc", fontSize: "0.8rem", cursor: "pointer", padding: "0.375rem 0.75rem", borderRadius: "6px" }}
+        >
+          Logga ut
+        </button>
       </div>
     </main>
   );
