@@ -2,25 +2,28 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const PROJECTS = [
-  { id: "1", name: "Stolar och sitsar", count: 12, updated: "Igår" },
-  { id: "2", name: "Keramik och lera", count: 8, updated: "3 dagar sedan" },
-  { id: "3", name: "Vävnader och textil", count: 5, updated: "1 vecka sedan" },
-];
+type Project = { id: string; name: string; count: number; updated: string };
 
 export default function ProjectsPage() {
   const router = useRouter();
-  const [projects, setProjects] = useState(PROJECTS);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<Project | null>(null);
 
   function createProject() {
     if (!newName.trim()) return;
-    const proj = { id: Date.now().toString(), name: newName.trim(), count: 0, updated: "Just nu" };
+    const proj: Project = { id: Date.now().toString(), name: newName.trim(), count: 0, updated: "Just nu" };
     setProjects([proj, ...projects]);
     setNewName("");
     setShowNew(false);
     router.push("/projects/" + proj.id);
+  }
+
+  function deleteProject() {
+    if (!confirmDelete) return;
+    setProjects(projects.filter((p) => p.id !== confirmDelete.id));
+    setConfirmDelete(null);
   }
 
   return (
@@ -55,37 +58,66 @@ export default function ProjectsPage() {
               style={{ width: "100%", padding: "0.625rem 0.75rem", background: "#111", border: "1px solid #333", borderRadius: "8px", color: "white", fontSize: "0.875rem", outline: "none", boxSizing: "border-box", marginBottom: "0.75rem" }}
             />
             <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-              <button onClick={() => setShowNew(false)} style={{ padding: "0.5rem 0.875rem", background: "transparent", color: "#aaa", border: "1px solid #444", borderRadius: "8px", fontSize: "0.8rem", cursor: "pointer" }}>Avbryt</button>
+              <button onClick={() => { setShowNew(false); setNewName(""); }} style={{ padding: "0.5rem 0.875rem", background: "transparent", color: "#aaa", border: "1px solid #444", borderRadius: "8px", fontSize: "0.8rem", cursor: "pointer" }}>Avbryt</button>
               <button onClick={createProject} style={{ padding: "0.5rem 0.875rem", background: "#1a56db", color: "white", border: "none", borderRadius: "8px", fontSize: "0.8rem", fontWeight: 500, cursor: "pointer" }}>Skapa</button>
             </div>
           </div>
         )}
 
+        {projects.length === 0 && !showNew && (
+          <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#555" }}>
+            <p style={{ fontSize: "0.9rem", marginBottom: "0.5rem" }}>Inga projekt ännu</p>
+            <p style={{ fontSize: "0.8rem" }}>Klicka på &quot;+ Nytt projekt&quot; för att komma igång</p>
+          </div>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {projects.map((proj) => (
-            <button
-              key={proj.id}
-              onClick={() => router.push("/projects/" + proj.id)}
-              style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "12px", padding: "1rem 1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", width: "100%", textAlign: "left" }}
-            >
-              <div>
+            <div key={proj.id} style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "12px", padding: "1rem 1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <button
+                onClick={() => router.push("/projects/" + proj.id)}
+                style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", flex: 1, padding: 0 }}
+              >
                 <p style={{ color: "white", fontWeight: 500, fontSize: "0.9375rem", margin: "0 0 0.25rem" }}>{proj.name}</p>
                 <p style={{ color: "#888", fontSize: "0.8rem", margin: 0 }}>{proj.count} objekt · {proj.updated}</p>
+              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ cursor: "pointer" }} onClick={() => router.push("/projects/" + proj.id)}>
+                  <path d="M6 4l4 4-4 4" stroke="#555" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                <button
+                  onClick={() => setConfirmDelete(proj)}
+                  title="Radera projekt"
+                  style={{ background: "transparent", border: "1px solid #3a2020", borderRadius: "6px", padding: "0.25rem 0.5rem", cursor: "pointer", display: "flex", alignItems: "center" }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M2 3.5h10M5.5 3.5V2.5h3v1M4.5 3.5l.5 8h4l.5-8" stroke="#c44" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
               </div>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M6 4l4 4-4 4" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </button>
+            </div>
           ))}
         </div>
       </div>
 
+      {confirmDelete && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", zIndex: 50 }}>
+          <div style={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: "14px", padding: "1.5rem", maxWidth: "340px", width: "100%" }}>
+            <h2 style={{ fontSize: "1rem", fontWeight: 500, margin: "0 0 0.5rem" }}>Radera projekt?</h2>
+            <p style={{ color: "#888", fontSize: "0.875rem", margin: "0 0 1.25rem" }}>
+              Är du säker på att du vill radera <strong style={{ color: "#ccc" }}>{confirmDelete.name}</strong>? Det går inte att ångra.
+            </p>
+            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmDelete(null)} style={{ padding: "0.5rem 1rem", background: "transparent", color: "#aaa", border: "1px solid #444", borderRadius: "8px", fontSize: "0.875rem", cursor: "pointer" }}>Avbryt</button>
+              <button onClick={deleteProject} style={{ padding: "0.5rem 1rem", background: "#c0392b", color: "white", border: "none", borderRadius: "8px", fontSize: "0.875rem", fontWeight: 500, cursor: "pointer" }}>Ja, radera</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ padding: "1rem 2rem", borderTop: "1px solid #222", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <p style={{ color: "#999", fontSize: "0.8rem", margin: 0 }}>Inloggad som tor@flodet.se</p>
-        <button
-          onClick={() => router.push("/login")}
-          style={{ background: "transparent", border: "1px solid #444", color: "#ccc", fontSize: "0.8rem", cursor: "pointer", padding: "0.375rem 0.75rem", borderRadius: "6px" }}
-        >
+        <button onClick={() => router.push("/login")} style={{ background: "transparent", border: "1px solid #444", color: "#ccc", fontSize: "0.8rem", cursor: "pointer", padding: "0.375rem 0.75rem", borderRadius: "6px" }}>
           Logga ut
         </button>
       </div>
