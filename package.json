@@ -11,12 +11,17 @@
   "dependencies": {
     "next": "14.2.35",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "pg": "^8.11.3",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.2.2"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/pg": "^8.11.0",
     "typescript": "^5"
   }
 }
