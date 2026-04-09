@@ -2,19 +2,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type User = { id: string; email: string; password: string; role: string };
-
-const DEFAULT_USERS: User[] = [
-  { id: "1", email: "tor@flodet.se", password: "demo1234", role: "admin" },
-];
-
-function getUsers(): User[] {
-  try {
-    const raw = localStorage.getItem("app_users");
-    return raw ? JSON.parse(raw) : DEFAULT_USERS;
-  } catch { return DEFAULT_USERS; }
-}
-
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -26,17 +13,17 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-
-    const users = getUsers();
-    const user = users.find(u => u.email === email.trim() && u.password === password);
-
-    if (user) {
-      sessionStorage.setItem("loggedIn", "true");
-      sessionStorage.setItem("userEmail", user.email);
-      sessionStorage.setItem("userRole", user.role);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Inloggning misslyckades"); setLoading(false); return; }
       router.replace("/projects");
-    } else {
-      setError("Fel e-post eller lösenord");
+    } catch {
+      setError("Serverfel, försök igen");
       setLoading(false);
     }
   }
@@ -59,11 +46,11 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} style={{ background: "var(--bg2)", borderRadius: "12px", padding: "1.5rem", border: "1px solid var(--border)" }}>
           <div style={{ marginBottom: "1rem" }}>
             <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text2)", marginBottom: "0.375rem" }}>E-post</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ width: "100%", padding: "0.625rem 0.75rem", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: "8px", color: "var(--text)", fontSize: "0.875rem", outline: "none", boxSizing: "border-box" }} placeholder="din@email.se"/>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: "100%", padding: "0.625rem 0.75rem", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: "8px", color: "var(--text)", fontSize: "0.875rem", outline: "none", boxSizing: "border-box" }} placeholder="din@email.se"/>
           </div>
           <div style={{ marginBottom: "1.25rem" }}>
             <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text2)", marginBottom: "0.375rem" }}>Lösenord</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ width: "100%", padding: "0.625rem 0.75rem", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: "8px", color: "var(--text)", fontSize: "0.875rem", outline: "none", boxSizing: "border-box" }} placeholder="••••••••"/>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required style={{ width: "100%", padding: "0.625rem 0.75rem", background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: "8px", color: "var(--text)", fontSize: "0.875rem", outline: "none", boxSizing: "border-box" }} placeholder="••••••••"/>
           </div>
           {error && <p style={{ color: "#f87171", fontSize: "0.8rem", margin: "0 0 1rem" }}>{error}</p>}
           <button type="submit" disabled={loading} style={{ width: "100%", padding: "0.625rem", background: loading ? "var(--border2)" : "#1a56db", color: "white", border: "none", borderRadius: "8px", fontSize: "0.875rem", fontWeight: 500, cursor: loading ? "not-allowed" : "pointer" }}>
