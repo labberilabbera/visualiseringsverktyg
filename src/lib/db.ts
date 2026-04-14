@@ -21,11 +21,12 @@ db.exec(`
   )
 `);
 
-// Skapa admin-användare om den inte finns
-const admin = db.prepare("SELECT id FROM users WHERE email = ?").get("tor@flodet.se");
-if (!admin) {
+// Skapa admin-användare om den inte finns (INSERT OR IGNORE undviker UNIQUE-fel)
+try {
   const hash = bcrypt.hashSync("demo1234", 10);
-  db.prepare("INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)").run("tor@flodet.se", hash, "admin");
+  db.prepare("INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)").run("tor@flodet.se", hash, "admin");
+} catch {
+  // Admin finns redan, ignorera
 }
 
 export default db;
