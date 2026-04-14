@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-type User = { id: number; email: string; role: string; created_at: string };
+type User = { id: number; email: string; role: string };
 
 export default function AdminPage() {
   const router = useRouter();
@@ -19,12 +19,12 @@ export default function AdminPage() {
   const [myEmail, setMyEmail] = useState("");
 
   useEffect(() => {
-    const role = sessionStorage.getItem("userRole");
-    const email = sessionStorage.getItem("userEmail");
-    if (role !== "admin") { router.replace("/projects"); return; }
-    setMyEmail(email || "");
-    fetchUsers();
-    setReady(true);
+    fetch("/api/auth/me").then(r => r.json()).then(data => {
+      if (data.error || data.role !== "admin") { router.replace("/projects"); return; }
+      setMyEmail(data.email);
+      fetchUsers();
+      setReady(true);
+    }).catch(() => router.replace("/login"));
   }, [router]);
 
   async function fetchUsers() {
@@ -37,40 +37,27 @@ export default function AdminPage() {
 
   async function addUser() {
     if (!newEmail.trim() || !newPassword.trim()) return;
-    const res = await fetch("/api/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: newEmail, password: newPassword, role: newRole }),
-    });
+    const res = await fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: newEmail, password: newPassword, role: newRole }) });
     if (res.ok) { notify("Användare tillagd!"); setShowAdd(false); setNewEmail(""); setNewPassword(""); setNewRole("user"); fetchUsers(); }
     else { const d = await res.json(); notify(d.error || "Fel"); }
   }
 
   async function deleteUser() {
     if (!confirmDelete) return;
-    const res = await fetch("/api/users", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: confirmDelete.id }),
-    });
+    const res = await fetch("/api/users", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: confirmDelete.id }) });
     if (res.ok) { notify("Användare raderad"); setConfirmDelete(null); fetchUsers(); }
     else { const d = await res.json(); notify(d.error || "Fel"); setConfirmDelete(null); }
   }
 
   async function savePassword() {
     if (!editUser || !editPassword.trim()) return;
-    const res = await fetch("/api/users", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editUser.id, password: editPassword }),
-    });
+    const res = await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editUser.id, password: editPassword }) });
     if (res.ok) { notify("Lösenord uppdaterat!"); setEditUser(null); setEditPassword(""); }
     else notify("Fel vid uppdatering");
   }
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    sessionStorage.clear();
     router.replace("/login");
   }
 
@@ -89,19 +76,14 @@ export default function AdminPage() {
     <main style={s.main}>
       <div style={{ maxWidth: "640px", margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-          <div>
-            <h1 style={{ fontSize: "1.25rem", fontWeight: 500, margin: "0 0 0.25rem" }}>Admin</h1>
-            <p style={{ fontSize: "0.8rem", color: "var(--text2)", margin: 0 }}>Hantera användare</p>
-          </div>
+          <div><h1 style={{ fontSize: "1.25rem", fontWeight: 500, margin: "0 0 0.25rem" }}>Admin</h1><p style={{ fontSize: "0.8rem", color: "var(--text2)", margin: 0 }}>Hantera användare</p></div>
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button onClick={() => setShowAdd(true)} style={s.btnP}>+ Lägg till</button>
             <button onClick={() => router.push("/projects")} style={s.btnG}>← Projekt</button>
             <button onClick={logout} style={s.btnG}>Logga ut</button>
           </div>
         </div>
-
         {msg && <div style={{ padding: "0.75rem 1rem", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: "8px", marginBottom: "1rem", fontSize: "0.875rem", color: "#6ea8fe" }}>{msg}</div>}
-
         {showAdd && (
           <div style={{ ...s.card, padding: "1.25rem", marginBottom: "1rem" }}>
             <p style={{ fontWeight: 500, marginBottom: "1rem", fontSize: "0.9rem" }}>Ny användare</p>
@@ -120,7 +102,6 @@ export default function AdminPage() {
             </div>
           </div>
         )}
-
         <div style={{ ...s.card, overflow: "hidden" }}>
           <div style={{ padding: "0.75rem 1.25rem", borderBottom: "1px solid var(--border)", display: "grid", gridTemplateColumns: "1fr auto auto", gap: "1rem", fontSize: "0.75rem", color: "var(--text3)", fontWeight: 500 }}>
             <span>E-POST</span><span>ROLL</span><span style={{ width: "140px" }}>ÅTGÄRDER</span>
@@ -140,7 +121,6 @@ export default function AdminPage() {
           ))}
         </div>
       </div>
-
       {editUser && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", zIndex: 50 }}>
           <div style={{ ...s.card, padding: "1.5rem", maxWidth: "360px", width: "100%" }}>
@@ -154,7 +134,6 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", zIndex: 50 }}>
           <div style={{ ...s.card, padding: "1.5rem", maxWidth: "340px", width: "100%" }}>
@@ -169,4 +148,4 @@ export default function AdminPage() {
       )}
     </main>
   );
-          }
+                }
