@@ -1,13 +1,11 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import QRCode from "qrcode";
 
 export default function QRPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = params?.id as string;
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [projectName, setProjectName] = useState("");
   const [uploads, setUploads] = useState<{id:number;filename:string}[]>([]);
   const [userEmail, setUserEmail] = useState("");
@@ -15,7 +13,8 @@ export default function QRPage() {
   const [uploadUrl, setUploadUrl] = useState("");
 
   useEffect(() => {
-    setUploadUrl(window.location.origin + "/upload/" + projectId);
+    const url = window.location.origin + "/upload/" + projectId;
+    setUploadUrl(url);
 
     fetch("/api/auth/me").then(r => r.json()).then(data => {
       if (data.error) { router.replace("/login"); return; }
@@ -34,18 +33,15 @@ export default function QRPage() {
     if (res.ok) setUploads(await res.json());
   }
 
-  useEffect(() => {
-    if (canvasRef.current && uploadUrl) {
-      QRCode.toCanvas(canvasRef.current, uploadUrl, { width: 240, margin: 2 });
-    }
-  }, [uploadUrl]);
-
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.replace("/login");
   }
 
   const initials = userEmail ? userEmail.split("@")[0].slice(0, 2).toUpperCase() : "??";
+  const qrSrc = uploadUrl
+    ? "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=" + encodeURIComponent(uploadUrl)
+    : "";
 
   if (!ready) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
@@ -89,9 +85,11 @@ export default function QRPage() {
           <h1 style={{ fontSize: "1.25rem", fontWeight: 500, margin: 0 }}>Skanna för att ladda upp</h1>
         </div>
 
-        <div style={{ background: "white", padding: "16px", borderRadius: "12px" }}>
-          <canvas ref={canvasRef} />
-        </div>
+        {qrSrc && (
+          <div style={{ background: "white", padding: "16px", borderRadius: "12px" }}>
+            <img src={qrSrc} alt="QR-kod" width={240} height={240} />
+          </div>
+        )}
 
         <p style={{ fontSize: "12px", color: "var(--text2)", textAlign: "center", maxWidth: "260px", lineHeight: 1.5 }}>
           Deltagarna skannar QR-koden och fotar sina skisser direkt från mobilen
