@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const uploads = db.prepare(
     "SELECT id, filename, mimetype, uploaded_at FROM uploads WHERE project_id = ? ORDER BY uploaded_at ASC"
