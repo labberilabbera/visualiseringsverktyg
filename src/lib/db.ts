@@ -42,4 +42,4 @@ try {
   db.prepare("INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)").run("tor@flodet.se", hash, "admin");
 } catch {}
 
-export default db;d uploads tables to db  
+export default db;
