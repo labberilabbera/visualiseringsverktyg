@@ -7,26 +7,39 @@ const DB_PATH = process.env.DATA_DIR
   : path.join(process.cwd(), "visualisering.db");
 
 const db = new Database(DB_PATH);
-
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
-// Skapa users-tabell om den inte finns
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     role TEXT DEFAULT 'user'
-  )
+  );
+
+  CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    owner_email TEXT NOT NULL,
+    prompt TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS uploads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    mimetype TEXT NOT NULL,
+    data TEXT NOT NULL,
+    uploaded_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
-// Skapa admin-användare om den inte finns (INSERT OR IGNORE undviker UNIQUE-fel)
 try {
   const hash = bcrypt.hashSync("demo1234", 10);
   db.prepare("INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)").run("tor@flodet.se", hash, "admin");
-} catch {
-  // Admin finns redan, ignorera
-}
+} catch {}
 
-export default db;
+export default db;d uploads tables to db  
