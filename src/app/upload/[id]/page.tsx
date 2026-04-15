@@ -14,9 +14,7 @@ export default function UploadPage() {
   async function handleFiles(selected: FileList | null) {
     if (!selected || selected.length === 0) return;
     const arr = Array.from(selected);
-
     setFiles(arr.map(f => ({ name: f.name, state: "uploading" as UploadState })));
-
     let done = 0;
     for (let i = 0; i < arr.length; i++) {
       const file = arr[i];
@@ -56,7 +54,6 @@ export default function UploadPage() {
 
   return (
     <main style={{ minHeight: "100vh", background: "#0f0f0f", color: "#fff", fontFamily: "system-ui, sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
-
       <div style={{ width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", alignItems: "center", gap: "1.5rem" }}>
 
         <div style={{ textAlign: "center" }}>
@@ -70,7 +67,7 @@ export default function UploadPage() {
         {files.length === 0 ? (
           <div
             onClick={() => inputRef.current?.click()}
-            style={{ width: "100%", border: "2px dashed #333", borderRadius: "16px", padding: "2.5rem 1rem", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", cursor: "pointer", transition: "border-color 0.2s" }}
+            style={{ width: "100%", border: "2px dashed #333", borderRadius: "16px", padding: "2.5rem 1rem", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", cursor: "pointer" }}
           >
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M16 22V10m0 0L11 15m5-5l5 5" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="16" cy="16" r="14" stroke="#444" strokeWidth="1.5"/></svg>
             <p style={{ fontSize: "14px", color: "#888", margin: 0, textAlign: "center" }}>Tryck för att välja bilder</p>
@@ -85,8 +82,8 @@ export default function UploadPage() {
                 </div>
                 <div style={{ flexShrink: 0, fontSize: "16px" }}>
                   {f.state === "uploading" && <span style={{ display: "inline-block", width: "16px", height: "16px", border: "2px solid #1a56db", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }}/>}
-                  {f.state === "done" && <span style={{ color: "#22c55e" }}>✓</span>}
-                  {f.state === "error" && <span style={{ color: "#ef4444" }}>✗</span>}
+                  {f.state === "done" && <span style={{ color: "#22c55e" }}>&#10003;</span>}
+                  {f.state === "error" && <span style={{ color: "#ef4444" }}>&#10007;</span>}
                 </div>
               </div>
             ))}
@@ -98,7 +95,8 @@ export default function UploadPage() {
             <p style={{ fontSize: "15px", color: "#22c55e", margin: "0 0 12px", fontWeight: 500 }}>
               {totalDone} {totalDone === 1 ? "fil" : "filer"} uppladdad{totalDone !== 1 ? "e" : ""}!
             </p>
-Add participant upload page              Ladda upp fler
+            <button onClick={reset} style={{ padding: "10px 24px", background: "#1a56db", border: "none", borderRadius: "10px", color: "white", fontSize: "14px", fontWeight: 500, cursor: "pointer" }}>
+              Ladda upp fler
             </button>
           </div>
         )}
