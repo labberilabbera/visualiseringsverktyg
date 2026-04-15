@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import db from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "fallback_secret");
 
 async function getEmail(req: NextRequest): Promise<string | null> {
@@ -16,7 +18,9 @@ async function getEmail(req: NextRequest): Promise<string | null> {
 export async function GET(req: NextRequest) {
   const email = await getEmail(req);
   if (!email) return NextResponse.json({ error: "Ej inloggad" }, { status: 401 });
-  const projects = db.prepare("SELECT id, name, prompt, created_at, updated_at FROM projects WHERE owner_email = ? ORDER BY updated_at DESC").all(email);
+  const projects = db.prepare(
+    "SELECT id, name, prompt, created_at, updated_at FROM projects WHERE owner_email = ? ORDER BY updated_at DESC"
+  ).all(email);
   return NextResponse.json(projects);
 }
 
