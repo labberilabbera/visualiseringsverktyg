@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const ADMIN_EMAIL = "tor@flodet.se";
-type Project = { id: string; name: string; count: number; updated: string };
+type Project = { id: number; name: string; prompt: string; created_at: string; updated_at: string };
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -21,9 +21,15 @@ export default function ProjectsPage() {
       setUserEmail(data.email);
       const t = localStorage.getItem("theme") || "dark";
       setIsDark(t === "dark");
+      loadProjects();
       setReady(true);
     }).catch(() => router.replace("/login"));
   }, [router]);
+
+  async function loadProjects() {
+    const res = await fetch("/api/projects");
+    if (res.ok) setProjects(await res.json());
+  }
 
   function toggleTheme() {
     const next = isDark ? "light" : "dark";
@@ -37,18 +43,37 @@ export default function ProjectsPage() {
     router.replace("/login");
   }
 
-  function createProject() {
+  async function createProject() {
     if (!newName.trim()) return;
-    const proj: Project = { id: Date.now().toString(), name: newName.trim(), count: 0, updated: "Just nu" };
-    setProjects([proj, ...projects]);
-    setNewName(""); setShowNew(false);
-    router.push("/projects/" + proj.id);
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName.trim() }),
+    });
+    if (res.ok) {
+      const proj = await res.json();
+      setProjects(prev => [proj, ...prev]);
+      setNewName("");
+      setShowNew(false);
+      router.push("/projects/" + proj.id);
+    }
   }
 
-  function deleteProject() {
+  async function deleteProject() {
     if (!confirmDelete) return;
+    await fetch("/api/projects/" + confirmDelete.id, { method: "DELETE" });
     setProjects(projects.filter(p => p.id !== confirmDelete.id));
     setConfirmDelete(null);
+  }
+
+  function timeAgo(dateStr: string) {
+    const diff = Date.now() - new Date(dateStr + "Z").getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 2) return "Just nu";
+    if (mins < 60) return mins + " min sedan";
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return hours + " tim sedan";
+    return Math.floor(hours / 24) + " dagar sedan";
   }
 
   if (!ready) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}><div style={{ width: "24px", height: "24px", border: "2px solid #1a56db", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;
@@ -71,6 +96,7 @@ export default function ProjectsPage() {
           </div>
           <button onClick={() => setShowNew(true)} style={bp}>+ Nytt projekt</button>
         </div>
+
         {showNew && (
           <div style={{ ...card, padding: "1.25rem", marginBottom: "1rem" }}>
             <p style={{ fontSize: "0.875rem", color: "var(--text2)", marginBottom: "0.75rem" }}>Projektnamn</p>
@@ -81,18 +107,20 @@ export default function ProjectsPage() {
             </div>
           </div>
         )}
+
         {projects.length === 0 && !showNew && (
           <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--text3)" }}>
             <p style={{ fontSize: "0.9rem", marginBottom: "0.5rem" }}>Inga projekt ännu</p>
-            <p style={{ fontSize: "0.8rem" }}>Klicka på &quot;+ Nytt projekt&quot; för att komma igång</p>
+            <p style={{ fontSize: "0.8rem" }}>Klicka på "+ Nytt projekt" för att komma igång</p>
           </div>
         )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {projects.map(proj => (
             <div key={proj.id} style={{ ...card, padding: "1rem 1.25rem", display: "flex", alignItems: "center" }}>
               <button onClick={() => router.push("/projects/" + proj.id)} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", flex: 1, padding: 0, color: "var(--text)" }}>
                 <p style={{ fontWeight: 500, fontSize: "0.9375rem", margin: "0 0 0.25rem" }}>{proj.name}</p>
-                <p style={{ color: "var(--text2)", fontSize: "0.8rem", margin: 0 }}>{proj.count} objekt · {proj.updated}</p>
+                <p style={{ color: "var(--text2)", fontSize: "0.8rem", margin: 0 }}>{timeAgo(proj.updated_at)}</p>
               </button>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ cursor: "pointer" }} onClick={() => router.push("/projects/" + proj.id)}><path d="M6 4l4 4-4 4" stroke="var(--text3)" strokeWidth="1.5" strokeLinecap="round"/></svg>
@@ -104,6 +132,7 @@ export default function ProjectsPage() {
           ))}
         </div>
       </div>
+
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", zIndex: 50 }}>
           <div style={{ ...card, padding: "1.5rem", maxWidth: "340px", width: "100%" }}>
@@ -116,6 +145,7 @@ export default function ProjectsPage() {
           </div>
         </div>
       )}
+
       <div style={{ padding: "1rem 2rem", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
         <p style={{ color: "var(--text2)", fontSize: "0.8rem", margin: 0 }}>{userEmail}</p>
         <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
