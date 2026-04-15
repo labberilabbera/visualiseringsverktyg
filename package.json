@@ -14,7 +14,8 @@
     "react-dom": "^18",
     "better-sqlite3": "^9.4.3",
     "bcryptjs": "^2.4.3",
-    "jose": "^5.2.2"
+    "jose": "^5.2.2",
+    "qrcode": "^1.5.3"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -22,6 +23,7 @@
     "@types/react-dom": "^18",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.8",
+    "@types/qrcode": "^1.5.5",
     "typescript": "^5"
   }
 }
