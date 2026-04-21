@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import sharp from "sharp";
 
 export const dynamic = "force-dynamic";
 
@@ -17,25 +16,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "missing_fields" }, { status: 400 });
     }
 
-    // Resize images to max 1024px to speed up generation
-    const resizedImages = await Promise.all(
-      images.map(async (img) => {
-        try {
-          const buf = Buffer.from(img.data, "base64");
-          const resized = await sharp(buf)
-            .resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true })
-            .jpeg({ quality: 85 })
-            .toBuffer();
-          return { data: resized.toString("base64"), mimeType: "image/jpeg" };
-        } catch {
-          return img;
-        }
-      })
-    );
-
     const parts = [
       { text: prompt },
-      ...resizedImages.map(img => ({ inlineData: { mimeType: img.mimeType, data: img.data } })),
+      ...images.map(img => ({ inlineData: { mimeType: img.mimeType, data: img.data } })),
     ];
 
     const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=" + key;
