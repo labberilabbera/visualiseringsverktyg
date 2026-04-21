@@ -29,13 +29,7 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
-        generationConfig: {
-          responseModalities: ["TEXT", "IMAGE"],
-          imageGenerationConfig: {
-            imageSize: "1K",
-            aspectRatio: "16:9",
-          },
-        },
+        generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
       }),
     });
 
