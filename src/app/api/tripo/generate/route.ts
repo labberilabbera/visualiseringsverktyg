@@ -10,17 +10,21 @@ export async function POST(req: NextRequest) {
     const { imageData } = await req.json() as { imageData: string };
     if (!imageData) return NextResponse.json({ error: "missing_image" }, { status: 400 });
 
-    // Strip data URL prefix if present
+    // Strip data URL prefix, get raw base64
     const base64 = imageData.startsWith("data:") ? imageData.split(",")[1] : imageData;
 
-    // Step 1: Upload image to Tripo
+    // Convert base64 to binary buffer
+    const binary = Buffer.from(base64, "base64");
+
+    // Upload as multipart form-data
+    const formData = new FormData();
+    const blob = new Blob([binary], { type: "image/jpeg" });
+    formData.append("file", blob, "image.jpg");
+
     const uploadRes = await fetch("https://api.tripo3d.ai/v2/openapi/upload", {
       method: "POST",
-      headers: {
-        "Authorization": "Bearer " + key,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ data: base64, type: "jpg" }),
+      headers: { "Authorization": "Bearer " + key },
+      body: formData,
     });
 
     if (!uploadRes.ok) {
@@ -30,9 +34,11 @@ export async function POST(req: NextRequest) {
 
     const uploadData = await uploadRes.json();
     const imageToken = uploadData?.data?.image_token;
-    if (!imageToken) return NextResponse.json({ error: "no_image_token" }, { status: 502 });
+    if (!imageToken) {
+      return NextResponse.json({ error: "no_image_token", detail: JSON.stringify(uploadData) }, { status: 502 });
+    }
 
-    // Step 2: Create 3D task
+    // Create image_to_model task
     const taskRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
       method: "POST",
       headers: {
@@ -52,31 +58,13 @@ export async function POST(req: NextRequest) {
 
     const taskData = await taskRes.json();
     const taskId = taskData?.data?.task_id;
-    if (!taskId) return NextResponse.json({ error: "no_task_id" }, { status: 502 });
-
-    // Step 3: Poll for result (max 120s)
-    for (let i = 0; i < 40; i++) {
-      await new Promise(r => setTimeout(r, 3000));
-
-      const pollRes = await fetch("https://api.tripo3d.ai/v2/openapi/task/" + taskId, {
-        headers: { "Authorization": "Bearer " + key },
-      });
-
-      if (!pollRes.ok) continue;
-      const pollData = await pollRes.json();
-      const status = pollData?.data?.status;
-
-      if (status === "success") {
-        const modelUrl = pollData?.data?.output?.model;
-        return NextResponse.json({ taskId, modelUrl, status: "success" });
-      }
-      if (status === "failed" || status === "cancelled") {
-        return NextResponse.json({ error: "task_" + status, taskId }, { status: 502 });
-      }
+    if (!taskId) {
+      return NextResponse.json({ error: "no_task_id", detail: JSON.stringify(taskData) }, { status: 502 });
     }
 
-    // Return taskId so frontend can poll itself
+    // Return taskId immediately, let client poll
     return NextResponse.json({ taskId, status: "pending" });
+
   } catch (e) {
     return NextResponse.json({ error: "server_error", detail: String(e) }, { status: 500 });
   }
@@ -95,6 +83,7 @@ export async function GET(req: NextRequest) {
   });
 
   if (!res.ok) return NextResponse.json({ error: "poll_failed" }, { status: 502 });
+
   const data = await res.json();
   const status = data?.data?.status;
   const modelUrl = data?.data?.output?.model;
