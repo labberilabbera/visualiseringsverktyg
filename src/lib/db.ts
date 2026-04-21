@@ -33,9 +33,15 @@ db.exec(`
     filename TEXT NOT NULL,
     mimetype TEXT NOT NULL,
     data TEXT NOT NULL,
+    ai_image TEXT DEFAULT NULL,
+    model3d_url TEXT DEFAULT NULL,
     uploaded_at TEXT DEFAULT (datetime('now'))
   );
 `);
+
+// Add columns if they don't exist yet (safe migration)
+try { db.exec("ALTER TABLE uploads ADD COLUMN ai_image TEXT DEFAULT NULL"); } catch {}
+try { db.exec("ALTER TABLE uploads ADD COLUMN model3d_url TEXT DEFAULT NULL"); } catch {}
 
 try {
   const hash = bcrypt.hashSync("demo1234", 10);
