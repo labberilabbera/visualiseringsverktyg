@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   const key = process.env.TRIPO_API_KEY;
@@ -10,18 +11,16 @@ export async function POST(req: NextRequest) {
     const { imageData } = await req.json() as { imageData: string };
     if (!imageData) return NextResponse.json({ error: "missing_image" }, { status: 400 });
 
-    // Strip data URL prefix, get raw base64
+    // Strip data URL prefix
     const base64 = imageData.startsWith("data:") ? imageData.split(",")[1] : imageData;
-
-    // Convert base64 to binary buffer
     const binary = Buffer.from(base64, "base64");
 
-    // Upload as multipart form-data
+    // Upload via STS endpoint (correct Tripo endpoint)
     const formData = new FormData();
     const blob = new Blob([binary], { type: "image/jpeg" });
     formData.append("file", blob, "image.jpg");
 
-    const uploadRes = await fetch("https://api.tripo3d.ai/v2/openapi/upload", {
+    const uploadRes = await fetch("https://api.tripo3d.ai/v2/openapi/upload/sts", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key },
       body: formData,
@@ -33,12 +32,13 @@ export async function POST(req: NextRequest) {
     }
 
     const uploadData = await uploadRes.json();
-    const imageToken = uploadData?.data?.image_token;
-    if (!imageToken) {
-      return NextResponse.json({ error: "no_image_token", detail: JSON.stringify(uploadData) }, { status: 502 });
+    // STS returns object info, not file_token
+    const fileObject = uploadData?.data;
+    if (!fileObject) {
+      return NextResponse.json({ error: "no_file_object", detail: JSON.stringify(uploadData) }, { status: 502 });
     }
 
-    // Create image_to_model task
+    // Create image_to_model task using object (recommended)
     const taskRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
       method: "POST",
       headers: {
@@ -47,7 +47,10 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         type: "image_to_model",
-        file: { type: "jpg", file_token: imageToken },
+        file: {
+          type: "jpg",
+          file_token: fileObject.image_token ?? fileObject.file_token,
+        },
       }),
     });
 
@@ -62,7 +65,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "no_task_id", detail: JSON.stringify(taskData) }, { status: 502 });
     }
 
-    // Return taskId immediately, let client poll
     return NextResponse.json({ taskId, status: "pending" });
 
   } catch (e) {
