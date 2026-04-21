@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 
 type Tab = "ai" | "skiss" | "3d";
@@ -17,6 +17,9 @@ export default function GeneratePage() {
   const [userEmail, setUserEmail] = useState("");
   const [ready, setReady] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState(false);
+  // Keep a stable ref to uploads so async callbacks always see latest state
+  const uploadsRef = useRef<Upload[]>([]);
+  useEffect(() => { uploadsRef.current = uploads; }, [uploads]);
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => {
@@ -37,8 +40,8 @@ export default function GeneratePage() {
 
   async function generateAll() {
     if (!prompt.trim()) return;
-    setUploads(prev => prev.map(u => ({ ...u, genState: "loading" as GenState })));
-    for (let i = 0; i < uploads.length; i++) {
+    const current = uploadsRef.current;
+    for (let i = 0; i < current.length; i++) {
       await generateOne(i);
     }
   }
@@ -46,7 +49,7 @@ export default function GeneratePage() {
   async function generateOne(i: number) {
     if (!prompt.trim()) return;
     setUploads(prev => prev.map((x, idx) => idx === i ? { ...x, genState: "loading" } : x));
-    const u = uploads[i];
+    const u = uploadsRef.current[i];
     try {
       const dataRes = await fetch("/api/projects/" + projectId + "/uploads/" + u.id + "/data");
       const { data, mimetype } = await dataRes.json();
@@ -68,22 +71,24 @@ export default function GeneratePage() {
   }
 
   async function deleteUpload(i: number) {
-    const u = uploads[i];
+    const u = uploadsRef.current[i];
     await fetch("/api/projects/" + projectId + "/uploads/" + u.id, { method: "DELETE" });
-    const next = uploads.filter((_, idx) => idx !== i);
+    const next = uploadsRef.current.filter((_, idx) => idx !== i);
     setUploads(next);
     if (selected >= next.length) setSelected(Math.max(0, next.length - 1));
   }
 
   async function runTripo(i: number) {
-    const u = uploads[i];
-    if (!u.aiImage) return;
+    // Capture aiImage at call time before any state changes
+    const aiImage = uploadsRef.current[i]?.aiImage;
+    if (!aiImage) return;
+
     setUploads(prev => prev.map((x, idx) => idx === i ? { ...x, tripoState: "loading", tripoProgress: 0 } : x));
     try {
       const res = await fetch("/api/tripo/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageData: u.aiImage }),
+        body: JSON.stringify({ imageData: aiImage }),
       });
       const json = await res.json();
       if (!json.taskId) {
@@ -146,7 +151,7 @@ export default function GeneratePage() {
               </div>
               <div style={{ display: "flex", gap: "3px", padding: "4px", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: "9px", padding: "2px 5px", borderRadius: "4px", fontWeight: 500, background: u.genState === "done" ? "#16a34a22" : u.genState === "loading" ? "#1a56db22" : u.genState === "error" ? "#c0392b22" : "#33333344", color: u.genState === "done" ? "#22c55e" : u.genState === "loading" ? "#6ea8fe" : u.genState === "error" ? "#ef4444" : "var(--text2)" }}>
-                  {u.genState === "done" ? "klar" : u.genState === "loading" ? "..." : u.genState === "error" ? "fel" : "väntar"}
+                  {u.tripoState === "loading" ? (u.tripoProgress ? u.tripoProgress + "%" : "3D...") : u.genState === "done" ? "klar" : u.genState === "loading" ? "..." : u.genState === "error" ? "fel" : "väntar"}
                 </span>
                 <div style={{ display: "flex", gap: "3px" }}>
                   <button onClick={e => { e.stopPropagation(); generateOne(i); }} style={{ background: "#1a56db22", border: "none", borderRadius: "4px", padding: "2px 5px", cursor: "pointer", fontSize: "10px", color: "#6ea8fe" }}>↺</button>
@@ -190,16 +195,18 @@ export default function GeneratePage() {
                 <p style={{ color: "#555", fontSize: "13px" }}>Genererar AI-bild...</p>
               </div>
             ) : cur.aiImage ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", maxWidth: "500px", width: "100%" }}>
-                <img src={cur.aiImage} style={{ maxWidth: "100%", maxHeight: "380px", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }} alt="AI-genererad" />
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", maxWidth: "600px", width: "100%" }}>
+                <img src={cur.aiImage} style={{ maxWidth: "100%", maxHeight: "400px", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }} alt="AI-genererad" />
                 {cur.model3d ? (
-                  <a href={cur.model3d} target="_blank" rel="noreferrer" style={{ padding: "8px 20px", background: "#22c55e", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, color: "white", textDecoration: "none" }}>
+                  <a href={cur.model3d} target="_blank" rel="noreferrer" style={{ padding: "8px 20px", background: "#22c55e", borderRadius: "8px", fontSize: "13px", fontWeight: 500, color: "white", textDecoration: "none" }}>
                     Visa 3D-modell ↗
                   </a>
                 ) : cur.tripoState === "loading" ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
-                    <div style={{ width: "24px", height: "24px", border: "2px solid #7c3aed", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }}/>
-                    <p style={{ color: "#7c3aed", fontSize: "12px", margin: 0 }}>Skapar 3D-modell... {cur.tripoProgress ? cur.tripoProgress + "%" : ""}</p>
+                    <div style={{ width: "200px", height: "6px", background: "#ddd", borderRadius: "3px", overflow: "hidden" }}>
+                      <div style={{ width: (cur.tripoProgress || 0) + "%", height: "100%", background: "#7c3aed", transition: "width 0.5s" }}/>
+                    </div>
+                    <p style={{ color: "#7c3aed", fontSize: "12px", margin: 0 }}>Skapar 3D-modell... {cur.tripoProgress || 0}%</p>
                   </div>
                 ) : cur.tripoState === "error" ? (
                   <button onClick={() => runTripo(selected)} style={{ padding: "8px 20px", background: "#ef4444", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, color: "white", cursor: "pointer" }}>
@@ -234,7 +241,7 @@ export default function GeneratePage() {
               </div>
             ) : (
               <p style={{ color: "#888", fontSize: "13px" }}>
-                {cur.aiImage ? "Klicka \"Skapa 3D-modell\" på AI-bilden" : "Generera AI-bild först"}
+                {cur.aiImage ? "Klicka \"Skapa 3D-modell\" under AI-bilden" : "Generera AI-bild först"}
               </p>
             )
           )}
@@ -253,5 +260,5 @@ function SkissView({ projectId, upload }: { projectId: string; upload: Upload })
       .catch(() => setSrc(null));
   }, [upload.id, projectId]);
   if (!src) return <p style={{ color: "#888", fontSize: "13px" }}>Laddar skiss...</p>;
-  return <img src={src} style={{ maxWidth: "100%", maxHeight: "420px", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }} alt="Originalskiss" />;
-        }
+  return <img src={src} style={{ maxWidth: "100%", maxHeight: "420px", borderRadius: "12px" }} alt="Originalskiss" />;
+}
