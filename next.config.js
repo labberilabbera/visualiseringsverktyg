@@ -1,22 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Force all routes to be dynamic — prevents SQLite "database is locked" during build
-  experimental: {
-    serverActions: { allowedOrigins: ["*"] },
-  },
-  // Disable static generation for all pages
-  output: undefined,
+  // Prevent Next.js from pre-rendering API routes at build time
+  // This fixes "database is locked" SQLite errors during build
+  serverRuntimeConfig: {},
+  publicRuntimeConfig: {},
 };
 
-// Make all API routes dynamic globally
-const withDynamic = {
-  ...nextConfig,
-  headers: async () => [],
-};
-
-module.exports = {
-  ...nextConfig,
-  // This tells Next.js not to pre-render any route at build time
-  generateStaticParams: undefined,
-  staticPageGenerationTimeout: 0,
-};
+module.exports = nextConfig;
