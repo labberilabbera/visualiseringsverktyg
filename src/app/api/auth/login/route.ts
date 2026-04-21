@@ -3,7 +3,11 @@ import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import db from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
+
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "fallback_secret");
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,3 +35,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Serverfel" }, { status: 500 });
   }
 }
+
