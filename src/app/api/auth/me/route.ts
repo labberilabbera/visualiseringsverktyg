@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
+export const dynamic = "force-dynamic";
+
+
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "fallback_secret");
+
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get("auth_token")?.value;
@@ -13,3 +17,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Ogiltig session" }, { status: 401 });
   }
 }
+
