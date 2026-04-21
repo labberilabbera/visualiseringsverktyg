@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 
+
+
 export async function POST(req: NextRequest) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return NextResponse.json({ error: "no_key" }, { status: 500 });
+
+
 
 
   try {
@@ -14,9 +18,13 @@ export async function POST(req: NextRequest) {
     };
 
 
+
+
     if (!prompt || !images?.length) {
       return NextResponse.json({ error: "missing_fields" }, { status: 400 });
     }
+
+
 
 
     const parts: object[] = [
@@ -27,15 +35,12 @@ export async function POST(req: NextRequest) {
     ];
 
 
+
+
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${key}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${key}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ role: "user", parts }],
-          generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
-        }),
-      }
-    );
-
