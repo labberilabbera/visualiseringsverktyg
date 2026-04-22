@@ -17,7 +17,6 @@ export default function GeneratePage() {
   const [userEmail, setUserEmail] = useState("");
   const [ready, setReady] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState(false);
-  // Keep a stable ref to uploads so async callbacks always see latest state
   const uploadsRef = useRef<Upload[]>([]);
   useEffect(() => { uploadsRef.current = uploads; }, [uploads]);
 
@@ -41,9 +40,7 @@ export default function GeneratePage() {
   async function generateAll() {
     if (!prompt.trim()) return;
     const current = uploadsRef.current;
-    for (let i = 0; i < current.length; i++) {
-      await generateOne(i);
-    }
+    for (let i = 0; i < current.length; i++) await generateOne(i);
   }
 
   async function generateOne(i: number) {
@@ -54,8 +51,7 @@ export default function GeneratePage() {
       const dataRes = await fetch("/api/projects/" + projectId + "/uploads/" + u.id + "/data");
       const { data, mimetype } = await dataRes.json();
       const res = await fetch("/api/ai/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, images: [{ data, mimeType: mimetype }] }),
       });
       const json = await res.json();
@@ -79,22 +75,16 @@ export default function GeneratePage() {
   }
 
   async function runTripo(i: number) {
-    // Capture aiImage at call time before any state changes
     const aiImage = uploadsRef.current[i]?.aiImage;
     if (!aiImage) return;
-
     setUploads(prev => prev.map((x, idx) => idx === i ? { ...x, tripoState: "loading", tripoProgress: 0 } : x));
     try {
       const res = await fetch("/api/tripo/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageData: aiImage }),
       });
       const json = await res.json();
-      if (!json.taskId) {
-        setUploads(prev => prev.map((x, idx) => idx === i ? { ...x, tripoState: "error" } : x));
-        return;
-      }
+      if (!json.taskId) { setUploads(prev => prev.map((x, idx) => idx === i ? { ...x, tripoState: "error" } : x)); return; }
       const taskId = json.taskId;
       for (let attempt = 0; attempt < 60; attempt++) {
         await new Promise(r => setTimeout(r, 4000));
@@ -112,18 +102,13 @@ export default function GeneratePage() {
         setUploads(prev => prev.map((x, idx) => idx === i ? { ...x, tripoProgress: pd.progress ?? 0 } : x));
       }
       setUploads(prev => prev.map((x, idx) => idx === i ? { ...x, tripoState: "error" } : x));
-    } catch {
-      setUploads(prev => prev.map((x, idx) => idx === i ? { ...x, tripoState: "error" } : x));
-    }
+    } catch { setUploads(prev => prev.map((x, idx) => idx === i ? { ...x, tripoState: "error" } : x)); }
   }
 
   const cur = uploads[selected];
   const anyLoading = uploads.some(u => u.genState === "loading");
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
-  }
+  async function logout() { await fetch("/api/auth/logout", { method: "POST" }); router.replace("/login"); }
 
   if (!ready) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
@@ -196,11 +181,11 @@ export default function GeneratePage() {
               </div>
             ) : cur.aiImage ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", maxWidth: "600px", width: "100%" }}>
-                <img src={cur.aiImage} style={{ maxWidth: "100%", maxHeight: "400px", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }} alt="AI-genererad" />
+                <img src={cur.aiImage} style={{ maxWidth: "100%", maxHeight: "380px", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }} alt="AI-genererad" />
                 {cur.model3d ? (
-                  <a href={cur.model3d} target="_blank" rel="noreferrer" style={{ padding: "8px 20px", background: "#22c55e", borderRadius: "8px", fontSize: "13px", fontWeight: 500, color: "white", textDecoration: "none" }}>
-                    Visa 3D-modell ↗
-                  </a>
+                  <button onClick={() => setTab("3d")} style={{ padding: "8px 20px", background: "#22c55e", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, color: "white", cursor: "pointer" }}>
+                    Visa 3D-modell →
+                  </button>
                 ) : cur.tripoState === "loading" ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
                     <div style={{ width: "200px", height: "6px", background: "#ddd", borderRadius: "3px", overflow: "hidden" }}>
@@ -209,13 +194,9 @@ export default function GeneratePage() {
                     <p style={{ color: "#7c3aed", fontSize: "12px", margin: 0 }}>Skapar 3D-modell... {cur.tripoProgress || 0}%</p>
                   </div>
                 ) : cur.tripoState === "error" ? (
-                  <button onClick={() => runTripo(selected)} style={{ padding: "8px 20px", background: "#ef4444", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, color: "white", cursor: "pointer" }}>
-                    Försök igen →
-                  </button>
+                  <button onClick={() => runTripo(selected)} style={{ padding: "8px 20px", background: "#ef4444", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, color: "white", cursor: "pointer" }}>Försök igen →</button>
                 ) : (
-                  <button onClick={() => runTripo(selected)} style={{ padding: "8px 20px", background: "#7c3aed", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, color: "white", cursor: "pointer" }}>
-                    Skapa 3D-modell →
-                  </button>
+                  <button onClick={() => runTripo(selected)} style={{ padding: "8px 20px", background: "#7c3aed", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, color: "white", cursor: "pointer" }}>Skapa 3D-modell →</button>
                 )}
               </div>
             ) : cur.genState === "error" ? (
@@ -233,12 +214,7 @@ export default function GeneratePage() {
             <SkissView projectId={projectId} upload={cur} />
           ) : (
             cur.model3d ? (
-              <div style={{ textAlign: "center" }}>
-                <p style={{ color: "#22c55e", fontSize: "14px", marginBottom: "12px", fontWeight: 500 }}>3D-modell klar!</p>
-                <a href={cur.model3d} target="_blank" rel="noreferrer" style={{ padding: "10px 24px", background: "#22c55e", borderRadius: "8px", fontSize: "13px", fontWeight: 500, color: "white", textDecoration: "none" }}>
-                  Öppna 3D-modell ↗
-                </a>
-              </div>
+              <ModelViewer modelUrl={cur.model3d} />
             ) : (
               <p style={{ color: "#888", fontSize: "13px" }}>
                 {cur.aiImage ? "Klicka \"Skapa 3D-modell\" under AI-bilden" : "Generera AI-bild först"}
@@ -262,3 +238,98 @@ function SkissView({ projectId, upload }: { projectId: string; upload: Upload })
   if (!src) return <p style={{ color: "#888", fontSize: "13px" }}>Laddar skiss...</p>;
   return <img src={src} style={{ maxWidth: "100%", maxHeight: "420px", borderRadius: "12px" }} alt="Originalskiss" />;
 }
+
+function ModelViewer({ modelUrl }: { modelUrl: string }) {
+  const mountRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let animId: number;
+    let renderer: any;
+
+    async function init() {
+      const THREE = await import("three");
+      const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
+      const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js");
+
+      if (!mountRef.current) return;
+      const w = mountRef.current.clientWidth;
+      const h = mountRef.current.clientHeight;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xf5e8e5);
+
+      const camera = new THREE.PerspectiveCamera(45, w / h, 0.01, 1000);
+      camera.position.set(0, 1, 3);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.shadowMap.enabled = true;
+      mountRef.current.appendChild(renderer.domElement);
+
+      // Lights
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+      dir.position.set(5, 10, 5);
+      scene.add(dir);
+      const fill = new THREE.DirectionalLight(0xffffff, 0.4);
+      fill.position.set(-5, 0, -5);
+      scene.add(fill);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 1.5;
+
+      const loader = new GLTFLoader();
+      loader.load(modelUrl, (gltf: any) => {
+        const model = gltf.scene;
+        // Center and scale
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 2 / maxDim;
+        model.position.sub(center.multiplyScalar(scale));
+        model.scale.setScalar(scale);
+        scene.add(model);
+        setLoading(false);
+      }, undefined, (err: any) => {
+        setError("Kunde inte ladda modell: " + String(err));
+        setLoading(false);
+      });
+
+      function animate() {
+        animId = requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    init().catch(e => { setError(String(e)); setLoading(false); });
+
+    return () => {
+      cancelAnimationFrame(animId);
+      if (renderer) renderer.dispose();
+      if (mountRef.current) mountRef.current.innerHTML = "";
+    };
+  }, [modelUrl]);
+
+  return (
+    <div style={{ width: "100%", maxWidth: "600px", aspectRatio: "16/9", position: "relative", borderRadius: "12px", overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }}>
+      <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
+      {loading && (
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f5e8e5" }}>
+          <div style={{ width: "32px", height: "32px", border: "3px solid #7c3aed", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }}/>
+          <p style={{ color: "#7c3aed", fontSize: "12px", marginTop: "8px" }}>Laddar 3D-modell...</p>
+        </div>
+      )}
+      {error && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#f5e8e5" }}><p style={{ color: "#ef4444", fontSize: "12px", padding: "1rem", textAlign: "center" }}>{error}</p></div>}
+      {!loading && !error && <p style={{ position: "absolute", bottom: "8px", right: "8px", fontSize: "10px", color: "#999", margin: 0, background: "rgba(255,255,255,0.7)", padding: "2px 6px", borderRadius: "4px" }}>Dra för att rotera · Scroll för zoom</p>}
+    </div>
+  );
+      }
