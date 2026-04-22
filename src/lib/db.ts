@@ -1,13 +1,17 @@
 import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes("railway") ? { rejectUnauthorized: false } : false,
-});
+let pool: Pool | null = null;
 
-async function init() {
-  await pool.query(`
+export function getPool(): Pool {
+  if (pool) return pool;
+  pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+  return pool;
+}
+
+export async function initDb(): Promise<void> {
+  const db = getPool();
+  await db.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
@@ -19,8 +23,8 @@ async function init() {
       name TEXT NOT NULL,
       owner_email TEXT NOT NULL,
       prompt TEXT DEFAULT '',
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
     );
     CREATE TABLE IF NOT EXISTS uploads (
       id SERIAL PRIMARY KEY,
@@ -28,19 +32,19 @@ async function init() {
       filename TEXT NOT NULL,
       mimetype TEXT NOT NULL,
       data TEXT NOT NULL,
-      ai_image TEXT,
-      model3d_url TEXT,
-      uploaded_at TIMESTAMPTZ DEFAULT NOW()
+      ai_image TEXT DEFAULT NULL,
+      model3d_url TEXT DEFAULT NULL,
+      uploaded_at TIMESTAMP DEFAULT NOW()
     );
   `);
-  const hash = bcrypt.hashSync("demo1234", 10);
-  await pool.query(
-    "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3) ON CONFLICT (email) DO NOTHING",
-    ["tor@flodet.se", hash, "admin"]
-  );
+  // Seed admin user
+  try {
+    const hash = bcrypt.hashSync("demo1234", 10);
+    await db.query(
+      "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3) ON CONFLICT (email) DO NOTHING",
+      ["tor@flodet.se", hash, "admin"]
+    );
+  } catch {}
 }
 
-// Run init on startup
-init().catch(console.error);
-
-export default pool;
+export default getPool;
