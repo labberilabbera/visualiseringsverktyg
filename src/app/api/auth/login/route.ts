@@ -8,6 +8,10 @@ const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "fallback_
 
 export async function POST(req: NextRequest) {
   try {
+    // Debug: check if DATABASE_URL is set
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) return NextResponse.json({ error: "no_database_url" }, { status: 500 });
+    
     await initDb();
     const db = getPool();
     const { email, password } = await req.json();
@@ -21,7 +25,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({ ok: true, email: user.email, role: user.role });
     response.cookies.set("auth_token", token, { httpOnly: true, secure: true, sameSite: "lax", maxAge: 60*60*24*7, path: "/" });
     return response;
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+  } catch (err: any) {
+    return NextResponse.json({ error: String(err), stack: err?.message, dbUrl: !!process.env.DATABASE_URL }, { status: 500 });
   }
 }
