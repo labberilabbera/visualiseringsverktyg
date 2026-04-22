@@ -8,15 +8,11 @@ export async function GET() {
   try {
     await initDb();
     const db = getPool();
-    // Upsert admin user with fresh hash
     const hash = bcrypt.hashSync("demo1234", 10);
-    await db.query(
-      `INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3)
-       ON CONFLICT (email) DO UPDATE SET password_hash = $2, role = $3`,
-      ["tor@flodet.se", hash, "admin"]
-    );
+    // Use UPDATE — no constraint needed
+    await db.query("UPDATE users SET password_hash = $1 WHERE email = $2", [hash, "tor@flodet.se"]);
     const res = await db.query("SELECT id, email, role FROM users");
-    return NextResponse.json({ ok: true, users: res.rows });
+    return NextResponse.json({ ok: true, users: res.rows, hash });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
