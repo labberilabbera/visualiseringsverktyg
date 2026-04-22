@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import db from "@/lib/db";
+import pool from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -16,23 +16,25 @@ async function getEmail(req: NextRequest): Promise<string | null> {
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(params.id);
-  if (!project) return NextResponse.json({ error: "Inte hittad" }, { status: 404 });
-  return NextResponse.json(project);
+  const { rows } = await pool.query("SELECT * FROM projects WHERE id = $1", [params.id]);
+  if (!rows[0]) return NextResponse.json({ error: "Inte hittad" }, { status: 404 });
+  return NextResponse.json(rows[0]);
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const email = await getEmail(req);
   if (!email) return NextResponse.json({ error: "Ej inloggad" }, { status: 401 });
   const { prompt } = await req.json();
-  db.prepare("UPDATE projects SET prompt = ?, updated_at = datetime('now') WHERE id = ? AND owner_email = ?")
-    .run(prompt, params.id, email);
+  await pool.query(
+    "UPDATE projects SET prompt = $1, updated_at = NOW() WHERE id = $2 AND owner_email = $3",
+    [prompt, params.id, email]
+  );
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const email = await getEmail(req);
   if (!email) return NextResponse.json({ error: "Ej inloggad" }, { status: 401 });
-  db.prepare("DELETE FROM projects WHERE id = ? AND owner_email = ?").run(params.id, email);
+  await pool.query("DELETE FROM projects WHERE id = $1 AND owner_email = $2", [params.id, email]);
   return NextResponse.json({ ok: true });
 }
