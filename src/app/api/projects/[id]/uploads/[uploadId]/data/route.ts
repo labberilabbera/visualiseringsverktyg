@@ -1,25 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/lib/db";
+import { getPool, initDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string; uploadId: string } }
-) {
-  const upload = db.prepare(
-    "SELECT data, mimetype FROM uploads WHERE id = ? AND project_id = ?"
-  ).get(params.uploadId, params.id) as { data: string; mimetype: string } | undefined;
-
-  if (!upload) return NextResponse.json({ error: "Inte hittad" }, { status: 404 });
-  return NextResponse.json({ data: upload.data, mimetype: upload.mimetype });
+export async function GET(_req: NextRequest, { params }: { params: { id: string; uploadId: string } }) {
+  await initDb();
+  const db = getPool();
+  const res = await db.query(
+    "SELECT data, mimetype FROM uploads WHERE id = $1 AND project_id = $2",
+    [params.uploadId, params.id]
+  );
+  if (!res.rows[0]) return NextResponse.json({ error: "Inte hittad" }, { status: 404 });
+  return NextResponse.json({ data: res.rows[0].data, mimetype: res.rows[0].mimetype });
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { id: string; uploadId: string } }
-) {
-  db.prepare("DELETE FROM uploads WHERE id = ? AND project_id = ?")
-    .run(params.uploadId, params.id);
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string; uploadId: string } }) {
+  await initDb();
+  const db = getPool();
+  await db.query("DELETE FROM uploads WHERE id = $1 AND project_id = $2", [params.uploadId, params.id]);
   return NextResponse.json({ ok: true });
 }
