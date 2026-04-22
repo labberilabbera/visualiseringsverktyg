@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import db from "@/lib/db";
+import pool from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +18,11 @@ async function getEmail(req: NextRequest): Promise<string | null> {
 export async function GET(req: NextRequest) {
   const email = await getEmail(req);
   if (!email) return NextResponse.json({ error: "Ej inloggad" }, { status: 401 });
-  const projects = db.prepare(
-    "SELECT id, name, prompt, created_at, updated_at FROM projects WHERE owner_email = ? ORDER BY updated_at DESC"
-  ).all(email);
-  return NextResponse.json(projects);
+  const { rows } = await pool.query(
+    "SELECT id, name, prompt, created_at, updated_at FROM projects WHERE owner_email = $1 ORDER BY updated_at DESC",
+    [email]
+  );
+  return NextResponse.json(rows);
 }
 
 export async function POST(req: NextRequest) {
@@ -29,7 +30,9 @@ export async function POST(req: NextRequest) {
   if (!email) return NextResponse.json({ error: "Ej inloggad" }, { status: 401 });
   const { name } = await req.json();
   if (!name?.trim()) return NextResponse.json({ error: "Namn krävs" }, { status: 400 });
-  const result = db.prepare("INSERT INTO projects (name, owner_email) VALUES (?, ?)").run(name.trim(), email);
-  const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(result.lastInsertRowid);
-  return NextResponse.json(project, { status: 201 });
+  const { rows } = await pool.query(
+    "INSERT INTO projects (name, owner_email) VALUES ($1, $2) RETURNING *",
+    [name.trim(), email]
+  );
+  return NextResponse.json(rows[0], { status: 201 });
 }
