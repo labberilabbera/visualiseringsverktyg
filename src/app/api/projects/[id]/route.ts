@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import pool from "@/lib/db";
+import { getPool, initDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
-
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "fallback_secret");
 
-async function getEmail(req: NextRequest): Promise<string | null> {
+async function getEmail(req: NextRequest) {
   try {
     const token = req.cookies.get("auth_token")?.value;
     if (!token) return null;
@@ -16,25 +15,28 @@ async function getEmail(req: NextRequest): Promise<string | null> {
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const { rows } = await pool.query("SELECT * FROM projects WHERE id = $1", [params.id]);
-  if (!rows[0]) return NextResponse.json({ error: "Inte hittad" }, { status: 404 });
-  return NextResponse.json(rows[0]);
+  await initDb();
+  const db = getPool();
+  const res = await db.query("SELECT * FROM projects WHERE id = $1", [params.id]);
+  if (!res.rows[0]) return NextResponse.json({ error: "Inte hittad" }, { status: 404 });
+  return NextResponse.json(res.rows[0]);
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const email = await getEmail(req);
   if (!email) return NextResponse.json({ error: "Ej inloggad" }, { status: 401 });
   const { prompt } = await req.json();
-  await pool.query(
-    "UPDATE projects SET prompt = $1, updated_at = NOW() WHERE id = $2 AND owner_email = $3",
-    [prompt, params.id, email]
-  );
+  await initDb();
+  const db = getPool();
+  await db.query("UPDATE projects SET prompt = $1, updated_at = NOW() WHERE id = $2 AND owner_email = $3", [prompt, params.id, email]);
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const email = await getEmail(req);
   if (!email) return NextResponse.json({ error: "Ej inloggad" }, { status: 401 });
-  await pool.query("DELETE FROM projects WHERE id = $1 AND owner_email = $2", [params.id, email]);
+  await initDb();
+  const db = getPool();
+  await db.query("DELETE FROM projects WHERE id = $1 AND owner_email = $2", [params.id, email]);
   return NextResponse.json({ ok: true });
 }
