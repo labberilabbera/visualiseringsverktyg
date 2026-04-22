@@ -21,9 +21,11 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/pg": "^8.11.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.8",
     "@types/qrcode": "^1.5.5",
     "typescript": "^5"
   }
 }
+
