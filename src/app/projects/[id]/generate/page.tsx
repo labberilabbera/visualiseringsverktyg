@@ -21,7 +21,7 @@ export default function GeneratePage() {
   async function generateOne(i:number){if(!prompt.trim())return;setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,genState:"loading"}:x));const u=uploadsRef.current[i];try{const dr=await fetch("/api/projects/"+projectId+"/uploads/"+u.id+"/data");const{data,mimetype}=await dr.json();const res=await fetch("/api/ai/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,images:[{data,mimeType:mimetype}]})});const json=await res.json();if(json.images?.[0]){const aiImage=json.images[0];await fetch("/api/projects/"+projectId+"/uploads/"+u.id+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({aiImage})});setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,aiImage,genState:"done"}:x));setTab("ai");}else{setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,aiError:json.error||"fel",genState:"error"}:x));}}catch(e){setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,aiError:String(e),genState:"error"}:x));}}
   async function deleteUpload(i:number){const u=uploadsRef.current[i];await fetch("/api/projects/"+projectId+"/uploads/"+u.id,{method:"DELETE"});const next=uploadsRef.current.filter((_,idx)=>idx!==i);setUploads(next);if(selected>=next.length)setSelected(Math.max(0,next.length-1));}
   async function runTripo(i:number){const aiImage=uploadsRef.current[i]?.aiImage;if(!aiImage)return;setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoState:"loading",tripoProgress:0}:x));const u=uploadsRef.current[i];try{const res=await fetch("/api/tripo/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageData:aiImage})});const json=await res.json();if(!json.taskId){setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));return;}const taskId=json.taskId;for(let a=0;a<60;a++){await new Promise(r=>setTimeout(r,4000));const pd=await(await fetch("/api/tripo/generate?taskId="+taskId)).json();if(pd.status==="success"&&pd.modelUrl){await fetch("/api/projects/"+projectId+"/uploads/"+u.id+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({model3dUrl:pd.modelUrl})});setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,model3d:pd.modelUrl,tripoState:"done"}:x));setTab("3d");return;}if(pd.status==="failed"||pd.status==="cancelled"){setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));return;}setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoProgress:pd.progress??0}:x));}setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));}catch{setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));}}
-  const cur=uploads[selected];const anyLoading=uploads.some(u=>u.genState==="loading");
+  const cur=uploads[selected]; const anyLoading=uploads.some(u=>u.genState==="loading");
   async function logout(){await fetch("/api/auth/logout",{method:"POST"});router.replace("/login");}
   if(!ready)return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg)"}}><div style={{width:"24px",height:"24px",border:"2px solid #1a56db",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>);
   return(
@@ -43,9 +43,7 @@ export default function GeneratePage() {
       </aside>
       <div style={{flex:1,background:"#fadcd9",display:"flex",flexDirection:"column"}}>
         <div style={{padding:"10px 16px",borderBottom:"1px solid #e8b8b0",display:"flex",alignItems:"center",justifyContent:"space-between",background:"#f5cdc8"}}>
-          <div style={{display:"flex",alignItems:"center",gap:"8px",flex:1,minWidth:0}}>
-            {editingPrompt?(<input autoFocus value={prompt} onChange={e=>setPrompt(e.target.value)} onBlur={()=>setEditingPrompt(false)} onKeyDown={e=>e.key==="Enter"&&setEditingPrompt(false)} style={{flex:1,padding:"5px 8px",borderRadius:"6px",border:"1px solid #ccc",fontSize:"12px",background:"white",color:"#111",outline:"none"}}/>):(<p onClick={()=>setEditingPrompt(true)} style={{fontSize:"12px",color:"#444",margin:0,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"text",padding:"5px 0"}}>{prompt||"Klicka för att redigera prompt..."}</p>)}
-          </div>
+          <div style={{display:"flex",alignItems:"center",gap:"8px",flex:1,minWidth:0}}>{editingPrompt?(<input autoFocus value={prompt} onChange={e=>setPrompt(e.target.value)} onBlur={()=>setEditingPrompt(false)} onKeyDown={e=>e.key==="Enter"&&setEditingPrompt(false)} style={{flex:1,padding:"5px 8px",borderRadius:"6px",border:"1px solid #ccc",fontSize:"12px",background:"white",color:"#111",outline:"none"}}/>):(<p onClick={()=>setEditingPrompt(true)} style={{fontSize:"12px",color:"#444",margin:0,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"text",padding:"5px 0"}}>{prompt||"Klicka för att redigera prompt..."}</p>)}</div>
           <div style={{display:"flex",gap:"6px",flexShrink:0,marginLeft:"10px"}}>
             <button onClick={()=>router.push("/projects/"+projectId+"/qr")} style={{padding:"6px 10px",background:"transparent",border:"1px solid #bbb",borderRadius:"8px",fontSize:"12px",color:"#555",cursor:"pointer"}}>+ Bilder</button>
             <button onClick={generateAll} disabled={anyLoading||uploads.length===0} style={{padding:"6px 14px",background:anyLoading?"#aaa":"#1a56db",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:anyLoading?"not-allowed":"pointer"}}>{anyLoading?"Genererar...":"Generera alla"}</button>
@@ -80,7 +78,7 @@ function SkissView({projectId,upload}:{projectId:string;upload:Upload}){
 
 function ModelViewer({modelUrl}:{modelUrl:string}){
   const ref=useRef<HTMLDivElement>(null);
-  const proxyUrl="/api/proxy?url="+encodeURIComponent(modelUrl);
+  const proxySrc="/api/proxy?url="+encodeURIComponent(modelUrl);
   useEffect(()=>{
     if(!ref.current)return;
     if(!document.querySelector('script[data-mv]')){
@@ -91,7 +89,7 @@ function ModelViewer({modelUrl}:{modelUrl:string}){
     const build=()=>{
       if(!ref.current)return;
       const mv=document.createElement("model-viewer") as any;
-      mv.setAttribute("src",proxyUrl);mv.setAttribute("alt","3D");
+      mv.setAttribute("src",proxySrc);mv.setAttribute("alt","3D");
       mv.setAttribute("auto-rotate","");mv.setAttribute("camera-controls","");
       mv.setAttribute("shadow-intensity","1");
       mv.style.cssText="width:100%;height:420px;background:#f5e8e5;";
@@ -100,7 +98,7 @@ function ModelViewer({modelUrl}:{modelUrl:string}){
     if(customElements.get("model-viewer")){build();}
     else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
     return()=>{if(ref.current)ref.current.innerHTML="";};
-  },[proxyUrl]);
+  },[proxySrc]);
   return(
     <div style={{width:"100%",maxWidth:"600px",borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5"}}>
       <div ref={ref} style={{width:"100%",height:"420px",background:"#f5e8e5",display:"flex",alignItems:"center",justifyContent:"center"}}>
