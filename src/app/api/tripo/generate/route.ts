@@ -12,23 +12,23 @@ export async function POST(req: NextRequest) {
     const base64 = imageData.startsWith("data:") ? imageData.split(",")[1] : imageData;
     const binary = Buffer.from(base64, "base64");
     const formData = new FormData();
-    formData.append("file", new Blob([binary], { type: "image/jpeg" }), "image.jpg");
+    const blob = new Blob([binary], { type: "image/jpeg" });
+    formData.append("file", blob, "image.jpg");
     const uploadRes = await fetch("https://api.tripo3d.ai/v2/openapi/upload/sts", {
       method: "POST", headers: { "Authorization": "Bearer " + key }, body: formData,
     });
-    if (!uploadRes.ok) return NextResponse.json({ error: "upload_failed", detail: await uploadRes.text() }, { status: 502 });
+    if (!uploadRes.ok) { const err = await uploadRes.text(); return NextResponse.json({ error: "upload_failed", detail: err }, { status: 502 }); }
     const uploadData = await uploadRes.json();
     const fileObject = uploadData?.data;
-    if (!fileObject) return NextResponse.json({ error: "no_file_object" }, { status: 502 });
+    if (!fileObject) return NextResponse.json({ error: "no_file_object", detail: JSON.stringify(uploadData) }, { status: 502 });
     const taskRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      method: "POST", headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
       body: JSON.stringify({ type: "image_to_model", file: { type: "jpg", file_token: fileObject.image_token ?? fileObject.file_token } }),
     });
-    if (!taskRes.ok) return NextResponse.json({ error: "task_failed", detail: await taskRes.text() }, { status: 502 });
+    if (!taskRes.ok) { const err = await taskRes.text(); return NextResponse.json({ error: "task_failed", detail: err }, { status: 502 }); }
     const taskData = await taskRes.json();
     const taskId = taskData?.data?.task_id;
-    if (!taskId) return NextResponse.json({ error: "no_task_id" }, { status: 502 });
+    if (!taskId) return NextResponse.json({ error: "no_task_id", detail: JSON.stringify(taskData) }, { status: 502 });
     return NextResponse.json({ taskId, status: "pending" });
   } catch (e) {
     return NextResponse.json({ error: "server_error", detail: String(e) }, { status: 500 });
@@ -49,21 +49,8 @@ export async function GET(req: NextRequest) {
   const taskData = data?.data;
   const status = taskData?.status;
   const progress = taskData?.progress ?? 0;
-  const modelUrl = taskData?.output?.model ?? taskData?.output?.model_mesh?.url ?? null;
-
-  // When done, fetch the GLB and return as base64 so it never expires
-  if (status === "success" && modelUrl) {
-    try {
-      const glbRes = await fetch(modelUrl);
-      if (glbRes.ok) {
-        const buffer = await glbRes.arrayBuffer();
-        const b64 = Buffer.from(buffer).toString("base64");
-        return NextResponse.json({ taskId, status, progress, modelData: "data:model/gltf-binary;base64," + b64 });
-      }
-    } catch {}
-    // Fallback to URL if download fails
-    return NextResponse.json({ taskId, status, progress, modelUrl });
-  }
-
-  return NextResponse.json({ taskId, status, progress, modelUrl: null });
+  // Return full output for debugging
+  const output = taskData?.output ?? null;
+  const modelUrl = output?.model ?? output?.rendered_image ?? output?.model_mesh?.url ?? null;
+  return NextResponse.json({ taskId, status, progress, modelUrl, output });
 }
