@@ -17,8 +17,6 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string;
 export async function PATCH(req: NextRequest, { params }: { params: { id: string; uploadId: string } }) {
   await initDb();
   const db = getPool();
-  await db.query("ALTER TABLE uploads ADD COLUMN IF NOT EXISTS tripo_task_id TEXT DEFAULT NULL", []);
-  await db.query("ALTER TABLE uploads ADD COLUMN IF NOT EXISTS segmented_model_url TEXT DEFAULT NULL", []);
   const { aiImage, model3dUrl, tripoTaskId, segmentedModelUrl } = await req.json();
   if (aiImage !== undefined) {
     await db.query("UPDATE uploads SET ai_image = $1 WHERE id = $2 AND project_id = $3", [aiImage, params.uploadId, params.id]);
