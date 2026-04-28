@@ -6,38 +6,17 @@ type Tab = "ai"|"skiss"|"3d";
 type GenState = "idle"|"loading"|"done"|"error";
 type Upload = { id:number;filename:string;mimetype:string;aiImage?:string;aiError?:string;genState:GenState;model3d?:string;tripoState?:string;tripoProgress?:number; };
 
-function downloadUrl(url: string, name: string) {
-  const a = document.createElement("a"); a.href = url; a.download = name; a.click();
-}
-
-function downloadDataUrl(dataUrl: string, name: string) {
-  downloadUrl(dataUrl, name);
-}
-
-async function shareFile(url: string, name: string, type: string) {
-  try {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    const file = new File([blob], name, { type });
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: name });
-    } else {
-      downloadUrl(url, name);
-    }
-  } catch { downloadUrl(url, name); }
-}
-
-function shareDataUrl(dataUrl: string, name: string, type: string) {
-  fetch(dataUrl).then(r=>r.blob()).then(blob=>{
-    const file = new File([blob], name, { type });
-    if (navigator.canShare?.({ files: [file] })) {
-      navigator.share({ files: [file], title: name }).catch(()=>downloadUrl(dataUrl, name));
-    } else { downloadUrl(dataUrl, name); }
-  });
+function dlUrl(url:string,name:string){const a=document.createElement("a");a.href=url;a.download=name;a.click();}
+function shareOrDl(url:string,name:string,type:string){
+  fetch(url).then(r=>r.blob()).then(blob=>{
+    const file=new File([blob],name,{type});
+    if((navigator as any).canShare?.({files:[file]})){(navigator as any).share({files:[file]}).catch(()=>dlUrl(url,name));}
+    else{dlUrl(url,name);}
+  }).catch(()=>dlUrl(url,name));
 }
 
 export default function GeneratePage() {
-  const router = useRouter(); const params = useParams(); const projectId = params?.id as string;
+  const router=useRouter(); const params=useParams(); const projectId=params?.id as string;
   const [tab,setTab]=useState<Tab>("ai"); const [uploads,setUploads]=useState<Upload[]>([]); const [selected,setSelected]=useState(0);
   const [prompt,setPrompt]=useState(""); const [ready,setReady]=useState(false); const [editingPrompt,setEditingPrompt]=useState(false);
   const uploadsRef=useRef<Upload[]>([]); useEffect(()=>{uploadsRef.current=uploads;},[uploads]);
@@ -53,10 +32,8 @@ export default function GeneratePage() {
   async function runTripo(i:number){const aiImage=uploadsRef.current[i]?.aiImage;if(!aiImage)return;setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoState:"loading",tripoProgress:0}:x));const u=uploadsRef.current[i];try{const res=await fetch("/api/tripo/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageData:aiImage})});const json=await res.json();if(!json.taskId){setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));return;}const taskId=json.taskId;for(let a=0;a<60;a++){await new Promise(r=>setTimeout(r,4000));const pd=await(await fetch("/api/tripo/generate?taskId="+taskId)).json();if(pd.status==="success"&&pd.modelUrl){await fetch("/api/projects/"+projectId+"/uploads/"+u.id+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({model3dUrl:pd.modelUrl})});setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,model3d:pd.modelUrl,tripoState:"done"}:x));setTab("3d");return;}if(pd.status==="failed"||pd.status==="cancelled"){setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));return;}setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoProgress:pd.progress??0}:x));}setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));}catch{setUploads(prev=>prev.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));}}
   const cur=uploads[selected]; const anyLoading=uploads.some(u=>u.genState==="loading");
   async function logout(){await fetch("/api/auth/logout",{method:"POST"});router.replace("/login");}
+  const btn=(color:string)=>({padding:"7px 14px",background:color,border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"} as const);
   if(!ready)return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg)"}}><div style={{width:"24px",height:"24px",border:"2px solid #1a56db",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>);
-
-  const btnStyle = (color: string) => ({padding:"7px 14px",background:color,border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"});
-
   return(
     <main style={{minHeight:"100vh",background:"var(--bg)",fontFamily:"system-ui,sans-serif",color:"var(--text)",display:"flex"}}>
       <aside style={{width:"200px",minWidth:"200px",borderRight:"1px solid var(--border)",background:"var(--bg2)",display:"flex",flexDirection:"column"}}>
@@ -88,17 +65,17 @@ export default function GeneratePage() {
           ):cur.aiImage?(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"12px",maxWidth:"600px",width:"100%"}}>
             <img src={cur.aiImage} style={{maxWidth:"100%",maxHeight:"340px",borderRadius:"12px",boxShadow:"0 4px 20px rgba(0,0,0,0.15)"}} alt="AI"/>
             <div style={{display:"flex",gap:"8px",flexWrap:"wrap",justifyContent:"center"}}>
-              <button onClick={()=>downloadDataUrl(cur.aiImage!,"ai-bild.jpg")} style={btnStyle("#555")}>⬇ Ladda ner</button>
-              <button onClick={()=>shareDataUrl(cur.aiImage!,"ai-bild.jpg","image/jpeg")} style={btnStyle("#1a56db")}>↗ Dela</button>
-              {cur.model3d?(<button onClick={()=>setTab("3d")} style={btnStyle("#22c55e")}>Visa 3D →</button>
-              ):cur.tripoState==="loading"?(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"4px"}}><div style={{width:"160px",height:"5px",background:"#ddd",borderRadius:"3px",overflow:"hidden"}}><div style={{width:(cur.tripoProgress||0)+"%",height:"100%",background:"#7c3aed",transition:"width 0.5s"}}/></div><p style={{color:"#7c3aed",fontSize:"11px",margin:0}}>3D... {cur.tripoProgress||0}%</p></div>
-              ):cur.tripoState==="error"?(<button onClick={()=>runTripo(selected)} style={btnStyle("#ef4444")}>Försök igen →</button>
-              ):(<button onClick={()=>runTripo(selected)} style={btnStyle("#7c3aed")}>Skapa 3D →</button>)}
+              <button onClick={()=>dlUrl(cur.aiImage!,"ai-bild.jpg")} style={btn("#555")}>⬇ Ladda ner</button>
+              <button onClick={()=>shareOrDl(cur.aiImage!,"ai-bild.jpg","image/jpeg")} style={btn("#1a56db")}>↗ Dela</button>
+              {cur.model3d?(<button onClick={()=>setTab("3d")} style={btn("#22c55e")}>Visa 3D →</button>
+              ):cur.tripoState==="loading"?(<div style={{display:"flex",alignItems:"center",gap:"8px"}}><div style={{width:"120px",height:"5px",background:"#ddd",borderRadius:"3px",overflow:"hidden"}}><div style={{width:(cur.tripoProgress||0)+"%",height:"100%",background:"#7c3aed",transition:"width 0.5s"}}/></div><p style={{color:"#7c3aed",fontSize:"11px",margin:0}}>{cur.tripoProgress||0}%</p></div>
+              ):cur.tripoState==="error"?(<button onClick={()=>runTripo(selected)} style={btn("#ef4444")}>Försök igen →</button>
+              ):(<button onClick={()=>runTripo(selected)} style={btn("#7c3aed")}>Skapa 3D →</button>)}
             </div>
-          </div>):cur.genState==="error"?(<div style={{textAlign:"center"}}><p style={{color:"#ef4444",fontSize:"13px",marginBottom:"8px"}}>Fel: {cur.aiError}</p><button onClick={()=>generateOne(selected)} style={btnStyle("#1a56db")}>Försök igen</button></div>
-          ):(<div style={{textAlign:"center"}}><p style={{color:"#888",fontSize:"13px",marginBottom:"8px"}}>Ingen AI-bild ännu</p><button onClick={()=>generateOne(selected)} style={btnStyle("#1a56db")}>Generera denna</button></div>)
+          </div>):cur.genState==="error"?(<div style={{textAlign:"center"}}><p style={{color:"#ef4444",fontSize:"13px",marginBottom:"8px"}}>Fel: {cur.aiError}</p><button onClick={()=>generateOne(selected)} style={btn("#1a56db")}>Försök igen</button></div>
+          ):(<div style={{textAlign:"center"}}><p style={{color:"#888",fontSize:"13px",marginBottom:"8px"}}>Ingen AI-bild ännu</p><button onClick={()=>generateOne(selected)} style={btn("#1a56db")}>Generera denna</button></div>)
           ):tab==="skiss"?(<SkissView projectId={projectId} upload={cur}/>
-          ):(cur.model3d?<ModelViewer modelUrl={cur.model3d}/>:(<p style={{color:"#888",fontSize:"13px"}}>{cur.aiImage?"Klicka \"Skapa 3D\" under AI-bilden":"Generera AI-bild först"}</p>))}
+          ):(cur.model3d?<ModelViewer modelUrl={cur.model3d}/>:(<p style={{color:"#888",fontSize:"13px"}}>{cur.aiImage?"Klicka Skapa 3D under AI-bilden":"Generera AI-bild först"}</p>))}
         </div>
       </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -114,15 +91,11 @@ function SkissView({projectId,upload}:{projectId:string;upload:Upload}){
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"12px",maxWidth:"600px",width:"100%"}}>
       <img src={src} style={{maxWidth:"100%",maxHeight:"380px",borderRadius:"12px"}} alt="Skiss"/>
       <div style={{display:"flex",gap:"8px"}}>
-        <button onClick={()=>downloadUrl(src,"skiss.jpg")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>⬇ Ladda ner</button>
-        <button onClick={()=>{fetch(src).then(r=>r.blob()).then(blob=>{const file=new File([blob],"skiss.jpg",{type:"image/jpeg"});if(navigator.canShare?.({files:[file]})){navigator.share({files:[file]}).catch(()=>downloadUrl(src,"skiss.jpg"));}else{downloadUrl(src,"skiss.jpg");}});}} style={{padding:"7px 14px",background:"#1a56db",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>↗ Dela</button>
+        <button onClick={()=>dlUrl(src,"skiss.jpg")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>⬇ Ladda ner</button>
+        <button onClick={()=>shareOrDl(src,"skiss.jpg","image/jpeg")} style={{padding:"7px 14px",background:"#1a56db",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>↗ Dela</button>
       </div>
     </div>
   );
-}
-
-function downloadUrl(url: string, name: string) {
-  const a = document.createElement("a"); a.href = url; a.download = name; a.click();
 }
 
 function ModelViewer({modelUrl}:{modelUrl:string}){
@@ -157,9 +130,9 @@ function ModelViewer({modelUrl}:{modelUrl:string}){
         <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra för att rotera · Scroll för zoom</p>
       </div>
       <div style={{display:"flex",gap:"8px",justifyContent:"center"}}>
-        <button onClick={()=>downloadUrl(proxySrc,"3d-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>⬇ Ladda ner GLB</button>
-        <button onClick={()=>{if(navigator.share){navigator.share({title:"3D-modell",url:proxySrc}).catch(()=>downloadUrl(proxySrc,"3d-modell.glb"));}else{downloadUrl(proxySrc,"3d-modell.glb");}}} style={{padding:"7px 14px",background:"#7c3aed",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>↗ Dela</button>
+        <button onClick={()=>dlUrl(proxySrc,"3d-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>⬇ Ladda ner GLB</button>
+        <button onClick={()=>{if((navigator as any).share){(navigator as any).share({title:"3D-modell",url:window.location.origin+proxySrc}).catch(()=>dlUrl(proxySrc,"3d-modell.glb"));}else{dlUrl(proxySrc,"3d-modell.glb");}}} style={{padding:"7px 14px",background:"#7c3aed",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>↗ Dela</button>
       </div>
     </div>
   );
-      }
+}
