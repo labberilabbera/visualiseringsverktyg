@@ -6,8 +6,10 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   await initDb();
   const db = getPool();
+  await db.query("ALTER TABLE uploads ADD COLUMN IF NOT EXISTS tripo_task_id TEXT DEFAULT NULL", []);
+  await db.query("ALTER TABLE uploads ADD COLUMN IF NOT EXISTS segmented_model_url TEXT DEFAULT NULL", []);
   const res = await db.query(
-    "SELECT id, filename, mimetype, uploaded_at, ai_image, model3d_url FROM uploads WHERE project_id = $1 ORDER BY uploaded_at ASC",
+    "SELECT id, filename, mimetype, uploaded_at, ai_image, model3d_url, tripo_task_id, segmented_model_url FROM uploads WHERE project_id = $1 ORDER BY uploaded_at ASC",
     [params.id]
   );
   return NextResponse.json(res.rows);
