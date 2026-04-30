@@ -103,19 +103,17 @@ function SegViewer({modelUrl,tripoTaskId,projectId,uploadId}:{modelUrl:string;tr
   const ref=useRef<HTMLDivElement>(null);const proxySrc="/api/proxy?url="+encodeURIComponent(modelUrl);
   const[selPart,setSelPart]=useState<string|null>(null);const[partPrompt,setPartPrompt]=useState("");
   const[retexing,setRetexing]=useState(false);const[retexProg,setRetexProg]=useState(0);
-  const meshMapRef=useRef<Map<string,any>>(new Map());
-  useEffect(()=>{if(!ref.current)return;
-    if(!document.querySelector('script[data-mv]')){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
+  useEffect(()=>{if(!ref.current)return;if(!document.querySelector('script[data-mv]')){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
     const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer")as any;mv.setAttribute("src",proxySrc);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.style.cssText="width:100%;height:320px;background:#f5e8e5;";ref.current.innerHTML="";ref.current.appendChild(mv);};
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
     return()=>{if(ref.current)ref.current.innerHTML="";};},[proxySrc]);
   async function retexture(){if(!selPart||!partPrompt.trim()||!tripoTaskId)return;setRetexing(true);setRetexProg(0);
-    try{const res=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:tripoTaskId,prompt:selPart+": "+partPrompt})});
+    try{const res=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:tripoTaskId,prompt:"Change only the "+selPart+" of this furniture to: "+partPrompt+". Keep everything else exactly the same."})});
       const json=await res.json();if(!json.taskId){setRetexing(false);return;}
       for(let a=0;a<60;a++){await new Promise(r=>setTimeout(r,4000));const pd=await(await fetch("/api/tripo/retexture?taskId="+json.taskId)).json();setRetexProg(pd.progress??0);
         if(pd.status==="success"&&pd.modelUrl){await fetch("/api/projects/"+projectId+"/uploads/"+uploadId+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({segmentedModelUrl:pd.modelUrl})});window.location.reload();return;}
         if(pd.status==="failed"||pd.status==="cancelled"){setRetexing(false);return;}}setRetexing(false);}catch{setRetexing(false);}}
-  const parts=["Ben","Sits","Ryggstöd","Armstöd","Kuddar","Ram","Övrigt"];
+  const parts=["Ben","Sits","Ryggstöd","Armstöd","Kuddar","Ram"];
   return(<div style={{width:"100%",maxWidth:"600px",display:"flex",flexDirection:"column",gap:"10px"}}>
     <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5"}}>
       <div ref={ref} style={{width:"100%",height:"320px",background:"#f5e8e5",display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"#999",fontSize:"12px"}}>Laddar...</p></div>
@@ -130,7 +128,7 @@ function SegViewer({modelUrl,tripoTaskId,projectId,uploadId}:{modelUrl:string;tr
         <input value={partPrompt} onChange={e=>setPartPrompt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&retexture()} placeholder={"Beskriv hur "+selPart+" ska se ut..."} style={{flex:1,padding:"7px 10px",borderRadius:"7px",border:"1px solid #ddd",fontSize:"12px",outline:"none"}} disabled={retexing}/>
         <button onClick={retexture} disabled={retexing||!partPrompt.trim()||!tripoTaskId} style={{padding:"7px 14px",background:retexing?"#aaa":"#f59e0b",border:"none",borderRadius:"7px",fontSize:"12px",fontWeight:500,color:"white",cursor:retexing?"not-allowed":"pointer"}}>{retexing?retexProg+"%":"Ändra"}</button>
       </div>)}
-      {!tripoTaskId&&<p style={{color:"#ef4444",fontSize:"11px",margin:"6px 0 0"}}>Saknar task-ID — skapa 3D-modellen igen</p>}
+      {!tripoTaskId&&<p style={{color:"#ef4444",fontSize:"11px",margin:"6px 0 0"}}>Saknar task-ID — skapa 3D igen</p>}
     </div>
     <div style={{display:"flex",gap:"8px",justifyContent:"center"}}>
       <button onClick={()=>dlUrl(proxySrc,"seg-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>⬇ Ladda ner GLB</button>
