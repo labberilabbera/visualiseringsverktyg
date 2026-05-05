@@ -7,12 +7,20 @@ export async function POST(req: NextRequest) {
   const key = process.env.TRIPO_API_KEY;
   if (!key) return NextResponse.json({ error: "no_key" }, { status: 500 });
   try {
-    const { originalTaskId, prompt } = await req.json();
+    const { originalTaskId, prompt, partNames } = await req.json();
     if (!originalTaskId || !prompt) return NextResponse.json({ error: "missing_params" }, { status: 400 });
+    const body: any = {
+      type: "texture_model",
+      original_model_task_id: originalTaskId,
+      prompt,
+    };
+    if (partNames && Array.isArray(partNames) && partNames.length > 0) {
+      body.part_names = partNames;
+    }
     const taskRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "texture_model", original_model_task_id: originalTaskId, prompt }),
+      body: JSON.stringify(body),
     });
     if (!taskRes.ok) return NextResponse.json({ error: "task_failed", detail: await taskRes.text() }, { status: 502 });
     const taskData = await taskRes.json();
