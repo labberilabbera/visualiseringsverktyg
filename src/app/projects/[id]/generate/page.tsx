@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 type Tab="ai"|"skiss"|"3d";
 type GenState="idle"|"loading"|"done"|"error";
-type Upload={id:number;filename:string;mimetype:string;aiImage?:string;aiError?:string;genState:GenState;model3d?:string;tripoState?:string;tripoProgress?:number;tripoTaskId?:string;segState?:string;segProgress?:number;segmentedModel?:string;};
+type Upload={id:number;filename:string;mimetype:string;aiImage?:string;aiError?:string;genState:GenState;model3d?:string;tripoState?:string;tripoProgress?:number;tripoTaskId?:string;segState?:string;segProgress?:number;segmentedModel?:string;segTaskId?:string;};
 function dlUrl(url:string,name:string){const a=document.createElement("a");a.href=url;a.download=name;a.click();}
 function shareOrDl(url:string,name:string,type:string){fetch(url).then(r=>r.blob()).then(blob=>{const f=new File([blob],name,{type});if((navigator as any).canShare?.({files:[f]})){(navigator as any).share({files:[f]}).catch(()=>dlUrl(url,name));}else dlUrl(url,name);}).catch(()=>dlUrl(url,name));}
 export default function GeneratePage(){
@@ -17,7 +17,7 @@ export default function GeneratePage(){
   async function generateOne(i:number){if(!prompt.trim())return;setUploads(p=>p.map((x,idx)=>idx===i?{...x,genState:"loading"}:x));const u=uploadsRef.current[i];try{const dr=await fetch("/api/projects/"+projectId+"/uploads/"+u.id+"/data");const{data,mimetype}=await dr.json();const res=await fetch("/api/ai/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,images:[{data,mimeType:mimetype}]})});const json=await res.json();if(json.images?.[0]){const aiImage=json.images[0];await fetch("/api/projects/"+projectId+"/uploads/"+u.id+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({aiImage})});setUploads(p=>p.map((x,idx)=>idx===i?{...x,aiImage,genState:"done"}:x));setTab("ai");}else setUploads(p=>p.map((x,idx)=>idx===i?{...x,aiError:json.error||"fel",genState:"error"}:x));}catch(e){setUploads(p=>p.map((x,idx)=>idx===i?{...x,aiError:String(e),genState:"error"}:x));}}
   async function deleteUpload(i:number){const u=uploadsRef.current[i];await fetch("/api/projects/"+projectId+"/uploads/"+u.id,{method:"DELETE"});const next=uploadsRef.current.filter((_,idx)=>idx!==i);setUploads(next);if(selected>=next.length)setSelected(Math.max(0,next.length-1));}
   async function runTripo(i:number){const aiImage=uploadsRef.current[i]?.aiImage;if(!aiImage)return;setUploads(p=>p.map((x,idx)=>idx===i?{...x,tripoState:"loading",tripoProgress:0}:x));const u=uploadsRef.current[i];try{const res=await fetch("/api/tripo/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageData:aiImage})});const json=await res.json();if(!json.taskId){setUploads(p=>p.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));return;}const taskId=json.taskId;for(let a=0;a<60;a++){await new Promise(r=>setTimeout(r,4000));const pd=await(await fetch("/api/tripo/generate?taskId="+taskId)).json();if(pd.status==="success"&&pd.modelUrl){await fetch("/api/projects/"+projectId+"/uploads/"+u.id+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({model3dUrl:pd.modelUrl,tripoTaskId:taskId})});setUploads(p=>p.map((x,idx)=>idx===i?{...x,model3d:pd.modelUrl,tripoTaskId:taskId,tripoState:"done"}:x));setTab("3d");return;}if(pd.status==="failed"||pd.status==="cancelled"){setUploads(p=>p.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));return;}setUploads(p=>p.map((x,idx)=>idx===i?{...x,tripoProgress:pd.progress??0}:x));}setUploads(p=>p.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));}catch{setUploads(p=>p.map((x,idx)=>idx===i?{...x,tripoState:"error"}:x));}}
-  async function runSegmentation(i:number){const taskId=uploadsRef.current[i]?.tripoTaskId;if(!taskId)return;setUploads(p=>p.map((x,idx)=>idx===i?{...x,segState:"loading",segProgress:0}:x));const u=uploadsRef.current[i];try{const res=await fetch("/api/tripo/segment",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({taskId})});const json=await res.json();if(!json.taskId){setUploads(p=>p.map((x,idx)=>idx===i?{...x,segState:"error"}:x));return;}const segId=json.taskId;for(let a=0;a<60;a++){await new Promise(r=>setTimeout(r,4000));const pd=await(await fetch("/api/tripo/segment?taskId="+segId)).json();if(pd.status==="success"&&pd.modelUrl){await fetch("/api/projects/"+projectId+"/uploads/"+u.id+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({segmentedModelUrl:pd.modelUrl})});setUploads(p=>p.map((x,idx)=>idx===i?{...x,segmentedModel:pd.modelUrl,segState:"done"}:x));setTab("3d");return;}if(pd.status==="failed"||pd.status==="cancelled"){setUploads(p=>p.map((x,idx)=>idx===i?{...x,segState:"error"}:x));return;}setUploads(p=>p.map((x,idx)=>idx===i?{...x,segProgress:pd.progress??0}:x));}setUploads(p=>p.map((x,idx)=>idx===i?{...x,segState:"error"}:x));}catch{setUploads(p=>p.map((x,idx)=>idx===i?{...x,segState:"error"}:x));}}
+  async function runSegmentation(i:number){const taskId=uploadsRef.current[i]?.tripoTaskId;if(!taskId)return;setUploads(p=>p.map((x,idx)=>idx===i?{...x,segState:"loading",segProgress:0}:x));const u=uploadsRef.current[i];try{const res=await fetch("/api/tripo/segment",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({taskId})});const json=await res.json();if(!json.taskId){setUploads(p=>p.map((x,idx)=>idx===i?{...x,segState:"error"}:x));return;}const segTaskId=json.taskId;for(let a=0;a<60;a++){await new Promise(r=>setTimeout(r,4000));const pd=await(await fetch("/api/tripo/segment?taskId="+segTaskId)).json();if(pd.status==="success"&&pd.modelUrl){await fetch("/api/projects/"+projectId+"/uploads/"+u.id+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({segmentedModelUrl:pd.modelUrl})});setUploads(p=>p.map((x,idx)=>idx===i?{...x,segmentedModel:pd.modelUrl,segTaskId,segState:"done"}:x));setTab("3d");return;}if(pd.status==="failed"||pd.status==="cancelled"){setUploads(p=>p.map((x,idx)=>idx===i?{...x,segState:"error"}:x));return;}setUploads(p=>p.map((x,idx)=>idx===i?{...x,segProgress:pd.progress??0}:x));}setUploads(p=>p.map((x,idx)=>idx===i?{...x,segState:"error"}:x));}catch{setUploads(p=>p.map((x,idx)=>idx===i?{...x,segState:"error"}:x));}}
   const cur=uploads[selected];const anyLoading=uploads.some(u=>u.genState==="loading");
   async function logout(){await fetch("/api/auth/logout",{method:"POST"});router.replace("/login");}
   const B=(c:string)=>({padding:"7px 14px",background:c,border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}as const);
@@ -64,7 +64,7 @@ export default function GeneratePage(){
         </div>):cur.genState==="error"?(<div style={{textAlign:"center"}}><p style={{color:"#ef4444",fontSize:"13px",marginBottom:"8px"}}>Fel: {cur.aiError}</p><button onClick={()=>generateOne(selected)} style={B("#1a56db")}>Försök igen</button></div>
         ):(<div style={{textAlign:"center"}}><p style={{color:"#888",fontSize:"13px",marginBottom:"8px"}}>Ingen AI-bild ännu</p><button onClick={()=>generateOne(selected)} style={B("#1a56db")}>Generera denna</button></div>)
         ):tab==="skiss"?(<SkissView projectId={projectId} upload={cur}/>
-        ):(cur.segmentedModel?<SegViewer modelUrl={cur.segmentedModel} tripoTaskId={cur.tripoTaskId} projectId={projectId} uploadId={cur.id}/>:cur.model3d?<ModelViewer modelUrl={cur.model3d}/>:(<p style={{color:"#888",fontSize:"13px"}}>{cur.aiImage?"Klicka Skapa 3D":"Generera AI-bild först"}</p>))}
+        ):(cur.segmentedModel?<SegViewer modelUrl={cur.segmentedModel} aiImage={cur.aiImage} segTaskId={cur.segTaskId} projectId={projectId} uploadId={cur.id}/>:cur.model3d?<ModelViewer modelUrl={cur.model3d}/>:(<p style={{color:"#888",fontSize:"13px"}}>{cur.aiImage?"Klicka Skapa 3D":"Generera AI-bild först"}</p>))}
       </div>
     </div>
     <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -99,21 +99,31 @@ function ModelViewer({modelUrl}:{modelUrl:string}){
     </div>
   </div>);}
 
-function SegViewer({modelUrl,tripoTaskId,projectId,uploadId}:{modelUrl:string;tripoTaskId?:string;projectId:string;uploadId:number}){
+function SegViewer({modelUrl,aiImage,segTaskId,projectId,uploadId}:{modelUrl:string;aiImage?:string;segTaskId?:string;projectId:string;uploadId:number}){
   const ref=useRef<HTMLDivElement>(null);const proxySrc="/api/proxy?url="+encodeURIComponent(modelUrl);
   const[selPart,setSelPart]=useState<string|null>(null);const[partPrompt,setPartPrompt]=useState("");
   const[retexing,setRetexing]=useState(false);const[retexProg,setRetexProg]=useState(0);
+  const[parts,setParts]=useState<string[]>([]);const[loadingParts,setLoadingParts]=useState(true);
+  useEffect(()=>{
+    if(!aiImage){setParts(["Del 1","Del 2","Del 3"]);setLoadingParts(false);return;}
+    fetch("/api/ai/parts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageData:aiImage})})
+      .then(r=>r.json()).then(d=>{setParts(d.parts||["Del 1","Del 2","Del 3"]);setLoadingParts(false);})
+      .catch(()=>{setParts(["Del 1","Del 2","Del 3"]);setLoadingParts(false);});
+  },[aiImage]);
   useEffect(()=>{if(!ref.current)return;if(!document.querySelector('script[data-mv]')){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
     const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer")as any;mv.setAttribute("src",proxySrc);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.style.cssText="width:100%;height:320px;background:#f5e8e5;";ref.current.innerHTML="";ref.current.appendChild(mv);};
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
     return()=>{if(ref.current)ref.current.innerHTML="";};},[proxySrc]);
-  async function retexture(){if(!selPart||!partPrompt.trim()||!tripoTaskId)return;setRetexing(true);setRetexProg(0);
-    try{const res=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:tripoTaskId,prompt:"Change only the "+selPart+" of this furniture to: "+partPrompt+". Keep everything else exactly the same."})});
+  async function retexture(){
+    if(!selPart||!partPrompt.trim()||!segTaskId)return;
+    setRetexing(true);setRetexProg(0);
+    try{
+      const res=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({originalTaskId:segTaskId,prompt:partPrompt,partNames:[selPart]})});
       const json=await res.json();if(!json.taskId){setRetexing(false);return;}
       for(let a=0;a<60;a++){await new Promise(r=>setTimeout(r,4000));const pd=await(await fetch("/api/tripo/retexture?taskId="+json.taskId)).json();setRetexProg(pd.progress??0);
         if(pd.status==="success"&&pd.modelUrl){await fetch("/api/projects/"+projectId+"/uploads/"+uploadId+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({segmentedModelUrl:pd.modelUrl})});window.location.reload();return;}
         if(pd.status==="failed"||pd.status==="cancelled"){setRetexing(false);return;}}setRetexing(false);}catch{setRetexing(false);}}
-  const parts=["Ben","Sits","Ryggstöd","Armstöd","Kuddar","Ram"];
   return(<div style={{width:"100%",maxWidth:"600px",display:"flex",flexDirection:"column",gap:"10px"}}>
     <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5"}}>
       <div ref={ref} style={{width:"100%",height:"320px",background:"#f5e8e5",display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"#999",fontSize:"12px"}}>Laddar...</p></div>
@@ -122,13 +132,14 @@ function SegViewer({modelUrl,tripoTaskId,projectId,uploadId}:{modelUrl:string;tr
     <div style={{background:"white",borderRadius:"10px",padding:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>Ändra en specifik del</p>
       <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"8px"}}>
-        {parts.map(p=>(<button key={p} onClick={()=>setSelPart(p===selPart?null:p)} style={{padding:"4px 10px",background:selPart===p?"#f59e0b":"#f3f4f6",border:"none",borderRadius:"6px",fontSize:"11px",fontWeight:selPart===p?600:400,color:selPart===p?"white":"#555",cursor:"pointer"}}>{p}</button>))}
+        {loadingParts?(<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Analyserar...</p>
+        ):parts.map(p=>(<button key={p} onClick={()=>setSelPart(p===selPart?null:p)} style={{padding:"4px 10px",background:selPart===p?"#f59e0b":"#f3f4f6",border:"none",borderRadius:"6px",fontSize:"11px",fontWeight:selPart===p?600:400,color:selPart===p?"white":"#555",cursor:"pointer"}}>{p}</button>))}
       </div>
       {selPart&&(<div style={{display:"flex",gap:"8px"}}>
         <input value={partPrompt} onChange={e=>setPartPrompt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&retexture()} placeholder={"Beskriv hur "+selPart+" ska se ut..."} style={{flex:1,padding:"7px 10px",borderRadius:"7px",border:"1px solid #ddd",fontSize:"12px",outline:"none"}} disabled={retexing}/>
-        <button onClick={retexture} disabled={retexing||!partPrompt.trim()||!tripoTaskId} style={{padding:"7px 14px",background:retexing?"#aaa":"#f59e0b",border:"none",borderRadius:"7px",fontSize:"12px",fontWeight:500,color:"white",cursor:retexing?"not-allowed":"pointer"}}>{retexing?retexProg+"%":"Ändra"}</button>
+        <button onClick={retexture} disabled={retexing||!partPrompt.trim()||!segTaskId} style={{padding:"7px 14px",background:retexing?"#aaa":"#f59e0b",border:"none",borderRadius:"7px",fontSize:"12px",fontWeight:500,color:"white",cursor:retexing?"not-allowed":"pointer"}}>{retexing?retexProg+"%":"Ändra"}</button>
       </div>)}
-      {!tripoTaskId&&<p style={{color:"#ef4444",fontSize:"11px",margin:"6px 0 0"}}>Saknar task-ID — skapa 3D igen</p>}
+      {!segTaskId&&<p style={{color:"#ef4444",fontSize:"11px",margin:"6px 0 0"}}>Kör segmentering igen för att aktivera del-redigering</p>}
     </div>
     <div style={{display:"flex",gap:"8px",justifyContent:"center"}}>
       <button onClick={()=>dlUrl(proxySrc,"seg-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>⬇ Ladda ner GLB</button>
