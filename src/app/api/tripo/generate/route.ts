@@ -20,13 +20,13 @@ export async function POST(req: NextRequest) {
     const uploadData = await uploadRes.json();
     const fileObject = uploadData?.data;
     if (!fileObject) return NextResponse.json({ error: "no_file_object" }, { status: 502 });
-    // Minimal task — no pbr, no extra params — should return output.model (standard GLB)
     const taskRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "image_to_model",
         file: { type: "jpg", file_token: fileObject.image_token ?? fileObject.file_token },
+        generate_parts: true,
       }),
     });
     if (!taskRes.ok) return NextResponse.json({ error: "task_failed", detail: await taskRes.text() }, { status: 502 });
@@ -53,7 +53,6 @@ export async function GET(req: NextRequest) {
   const status = taskData?.status;
   const progress = taskData?.progress ?? 0;
   const output = taskData?.output ?? null;
-  // Standard model output — output.model is the basic GLB (no pbr)
   const modelUrl = output?.model ?? output?.pbr_model ?? null;
   return NextResponse.json({ taskId, status, progress, modelUrl });
 }
