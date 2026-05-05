@@ -1,33 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPool, initDb } from "@/lib/db";
+import { initDb, getPool } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   await initDb();
-  const db = getPool();
-  await db.query("ALTER TABLE uploads ADD COLUMN IF NOT EXISTS tripo_task_id TEXT DEFAULT NULL", []);
-  await db.query("ALTER TABLE uploads ADD COLUMN IF NOT EXISTS segmented_model_url TEXT DEFAULT NULL", []);
-  const res = await db.query(
-    "SELECT id, filename, mimetype, uploaded_at, ai_image, model3d_url, tripo_task_id, segmented_model_url FROM uploads WHERE project_id = $1 ORDER BY uploaded_at ASC",
-    [params.id]
+  const pool = getPool();
+  const projectId = parseInt(params.id);
+  await pool.query("ALTER TABLE uploads ADD COLUMN IF NOT EXISTS seg_task_id TEXT");
+  const result = await pool.query(
+    "SELECT id, filename, mimetype, ai_image, model3d_url, tripo_task_id, segmented_model_url, seg_task_id FROM uploads WHERE project_id = $1 ORDER BY id",
+    [projectId]
   );
-  return NextResponse.json(res.rows);
-}
-
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    const { filename, mimetype, data } = await req.json();
-    if (!filename || !mimetype || !data) return NextResponse.json({ error: "missing_fields" }, { status: 400 });
-    await initDb();
-    const db = getPool();
-    const res = await db.query(
-      "INSERT INTO uploads (project_id, filename, mimetype, data) VALUES ($1, $2, $3, $4) RETURNING id",
-      [params.id, filename, mimetype, data]
-    );
-    await db.query("UPDATE projects SET updated_at = NOW() WHERE id = $1", [params.id]);
-    return NextResponse.json({ id: res.rows[0].id }, { status: 201 });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+  return NextResponse.json(result.rows);
 }
