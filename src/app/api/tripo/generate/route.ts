@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const key = process.env.TRIPO_API_KEY;
   if (!key) return NextResponse.json({ error: "no_key" }, { status: 500 });
   try {
-    const { imageData } = await req.json() as { imageData: string };
+    const { imageData, generateParts } = await req.json() as { imageData: string; generateParts?: boolean };
     if (!imageData) return NextResponse.json({ error: "missing_image" }, { status: 400 });
     const base64 = imageData.startsWith("data:") ? imageData.split(",")[1] : imageData;
     const binary = Buffer.from(base64, "base64");
@@ -20,14 +20,15 @@ export async function POST(req: NextRequest) {
     const uploadData = await uploadRes.json();
     const fileObject = uploadData?.data;
     if (!fileObject) return NextResponse.json({ error: "no_file_object" }, { status: 502 });
+    const taskBody: any = {
+      type: "image_to_model",
+      file: { type: "jpg", file_token: fileObject.image_token ?? fileObject.file_token },
+    };
+    if (generateParts) taskBody.generate_parts = true;
     const taskRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "image_to_model",
-        file: { type: "jpg", file_token: fileObject.image_token ?? fileObject.file_token },
-        generate_parts: true,
-      }),
+      body: JSON.stringify(taskBody),
     });
     if (!taskRes.ok) return NextResponse.json({ error: "task_failed", detail: await taskRes.text() }, { status: 502 });
     const taskData = await taskRes.json();
