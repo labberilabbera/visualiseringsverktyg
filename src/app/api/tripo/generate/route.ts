@@ -10,9 +10,24 @@ export async function POST(req: NextRequest) {
     const { imageData, generateParts } = await req.json() as { imageData: string; generateParts?: boolean };
     if (!imageData) return NextResponse.json({ error: "missing_image" }, { status: 400 });
     const base64 = imageData.startsWith("data:") ? imageData.split(",")[1] : imageData;
+    const binary = Buffer.from(base64, "base64");
+    const formData = new FormData();
+    formData.append("file", new Blob([binary], { type: "image/jpeg" }), "image.jpg");
+    const uploadRes = await fetch("https://api.tripo3d.ai/v2/openapi/upload/sts", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key },
+      body: formData,
+    });
+    if (!uploadRes.ok) {
+      const detail = await uploadRes.text();
+      return NextResponse.json({ error: "upload_failed", detail }, { status: 502 });
+    }
+    const uploadData = await uploadRes.json();
+    const imageToken = uploadData?.data?.image_token;
+    if (!imageToken) return NextResponse.json({ error: "no_image_token", raw: JSON.stringify(uploadData) }, { status: 502 });
     const taskBody: any = {
       type: "image_to_model",
-      file: { type: "jpg", file_token: base64 },
+      file: { type: "jpg", file_token: imageToken },
     };
     if (generateParts) taskBody.generate_parts = true;
     const taskRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
