@@ -31,7 +31,12 @@ export async function POST(req: NextRequest) {
       type: "image_to_model",
       file: { type: "jpg", file_token: imageToken },
     };
-    if (generateParts) taskBody.generate_parts = true;
+    if (generateParts) {
+      // generate_parts kräver texture=false och pbr=false enligt Tripo docs
+      taskBody.generate_parts = true;
+      taskBody.texture = false;
+      taskBody.pbr = false;
+    }
     const taskRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
