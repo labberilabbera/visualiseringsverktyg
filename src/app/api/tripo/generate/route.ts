@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   const key = process.env.TRIPO_API_KEY;
@@ -11,8 +12,9 @@ export async function POST(req: NextRequest) {
     if (!imageData) return NextResponse.json({ error: "missing_image" }, { status: 400 });
     const base64 = imageData.startsWith("data:") ? imageData.split(",")[1] : imageData;
     const binary = Buffer.from(base64, "base64");
+    const blob = new Blob([binary], { type: "image/jpeg" });
     const formData = new FormData();
-    formData.append("file", new Blob([binary], { type: "image/jpeg" }), "image.jpg");
+    formData.append("file", blob, "image.jpg");
     const uploadRes = await fetch("https://api.tripo3d.ai/v2/openapi/upload/sts", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key },
