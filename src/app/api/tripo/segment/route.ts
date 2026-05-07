@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   const key = process.env.TRIPO_API_KEY;
@@ -37,9 +38,7 @@ export async function GET(req: NextRequest) {
   if (!res.ok) return NextResponse.json({ error: "poll_failed" }, { status: 502 });
   const data = await res.json();
   const taskData = data?.data;
-  const status = taskData?.status;
-  const progress = taskData?.progress ?? 0;
   const output = taskData?.output ?? null;
   const modelUrl = output?.model ?? output?.pbr_model ?? null;
-  return NextResponse.json({ taskId, status, progress, modelUrl });
+  return NextResponse.json({ taskId, status: taskData?.status, progress: taskData?.progress ?? 0, modelUrl });
 }
