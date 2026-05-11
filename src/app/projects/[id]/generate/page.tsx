@@ -77,7 +77,7 @@ function SkissView({projectId,upload}:{projectId:string;upload:Upload}){
     </div>
   </div>);}
 
-function dlUrl(url:string,name:string){const a=document.createElement("a");a.href=url;a.download=name;a.click();}
+
 
 function MRCodeModal({modelUrl,uploadId,onClose}:{modelUrl:string;uploadId:number;onClose:()=>void}){
   const[code,setCode]=useState<string|null>(null);
