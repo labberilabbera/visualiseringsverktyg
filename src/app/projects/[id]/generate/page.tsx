@@ -27,15 +27,15 @@ export default function GeneratePage(){
       <div style={{flex:1,overflowY:"auto",padding:"8px"}}>{uploads.map((u,i)=>(<div key={u.id} onClick={()=>setSelected(i)} style={{marginBottom:"8px",borderRadius:"8px",overflow:"hidden",border:selected===i?"2px solid #1a56db":"1px solid var(--border)",cursor:"pointer",background:"var(--bg)"}}>
         <div style={{height:"72px",background:"#111",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>{u.aiImage?<img src={u.aiImage} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>:<div style={{fontSize:"10px",color:"#555",textAlign:"center",padding:"4px"}}>{u.filename}</div>}</div>
         <div style={{display:"flex",gap:"3px",padding:"4px",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:"9px",padding:"2px 5px",borderRadius:"4px",fontWeight:500,background:u.segTaskId&&u.model3d?"#f59e0b22":u.model3d?"#7c3aed22":u.genState==="done"?"#16a34a22":u.genState==="loading"?"#1a56db22":u.genState==="error"?"#c0392b22":"#33333344",color:u.segTaskId&&u.model3d?"#f59e0b":u.model3d?"#a78bfa":u.genState==="done"?"#22c55e":u.genState==="loading"?"#6ea8fe":u.genState==="error"?"#ef4444":"var(--text2)"}}>{u.tripoState==="loading"?(u.tripoProgress?u.tripoProgress+"%":"3D..."):u.segTaskId&&u.model3d?"Seg klar":u.model3d?"3D klar":u.genState==="done"?"klar":u.genState==="loading"?"...":u.genState==="error"?"fel":"väntar"}</span>
-          <div style={{display:"flex",gap:"3px"}}><button onClick={e=>{e.stopPropagation();generateOne(i);}} style={{background:"#1a56db22",border:"none",borderRadius:"4px",padding:"2px 5px",cursor:"pointer",fontSize:"10px",color:"#6ea8fe"}}>↺</button><button onClick={e=>{e.stopPropagation();deleteUpload(i);}} style={{background:"#c0392b22",border:"none",borderRadius:"4px",padding:"2px 5px",cursor:"pointer",fontSize:"10px",color:"#ef4444"}}>✕</button></div>
+          <span style={{fontSize:"9px",padding:"2px 5px",borderRadius:"4px",fontWeight:500,background:u.segTaskId&&u.model3d?"#f59e0b22":u.model3d?"#7c3aed22":u.genState==="done"?"#16a34a22":u.genState==="loading"?"#1a56db22":u.genState==="error"?"#c0392b22":"#33333344",color:u.segTaskId&&u.model3d?"#f59e0b":u.model3d?"#a78bfa":u.genState==="done"?"#22c55e":u.genState==="loading"?"#6ea8fe":u.genState==="error"?"#ef4444":"var(--text2)"}}>{u.tripoState==="loading"?(u.tripoProgress?u.tripoProgress+"%":"3D..."):u.segTaskId&&u.model3d?"Seg klar":u.model3d?"3D klar":u.genState==="done"?"klar":u.genState==="loading"?"...":u.genState==="error"?"fel":"vantar"}</span>
+          <div style={{display:"flex",gap:"3px"}}><button onClick={e=>{e.stopPropagation();generateOne(i);}} style={{background:"#1a56db22",border:"none",borderRadius:"4px",padding:"2px 5px",cursor:"pointer",fontSize:"10px",color:"#6ea8fe"}}>&#x21BA;</button><button onClick={e=>{e.stopPropagation();deleteUpload(i);}} style={{background:"#c0392b22",border:"none",borderRadius:"4px",padding:"2px 5px",cursor:"pointer",fontSize:"10px",color:"#ef4444"}}>X</button></div>
         </div>
       </div>))}</div>
       <div style={{padding:"10px",borderTop:"1px solid var(--border)"}}><button onClick={logout} style={{width:"100%",padding:"5px 0",background:"transparent",border:"1px solid var(--border2)",borderRadius:"6px",fontSize:"11px",color:"var(--text2)",cursor:"pointer"}}>Logga ut</button></div>
     </aside>
     <div style={{flex:1,background:"#fadcd9",display:"flex",flexDirection:"column"}}>
       <div style={{padding:"10px 16px",borderBottom:"1px solid #e8b8b0",display:"flex",alignItems:"center",justifyContent:"space-between",background:"#f5cdc8"}}>
-        <div style={{display:"flex",alignItems:"center",gap:"8px",flex:1,minWidth:0}}>{editingPrompt?(<input autoFocus value={prompt} onChange={e=>setPrompt(e.target.value)} onBlur={()=>setEditingPrompt(false)} onKeyDown={e=>e.key==="Enter"&&setEditingPrompt(false)} style={{flex:1,padding:"5px 8px",borderRadius:"6px",border:"1px solid #ccc",fontSize:"12px",background:"white",color:"#111",outline:"none"}}/>):(<p onClick={()=>setEditingPrompt(true)} style={{fontSize:"12px",color:"#444",margin:0,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"text",padding:"5px 0"}}>{prompt||"Klicka för att redigera prompt..."}</p>)}</div>
+        <div style={{display:"flex",alignItems:"center",gap:"8px",flex:1,minWidth:0}}>{editingPrompt?(<input autoFocus value={prompt} onChange={e=>setPrompt(e.target.value)} onBlur={()=>setEditingPrompt(false)} onKeyDown={e=>e.key==="Enter"&&setEditingPrompt(false)} style={{flex:1,padding:"5px 8px",borderRadius:"6px",border:"1px solid #ccc",fontSize:"12px",background:"white",color:"#111",outline:"none"}}/>):(<p onClick={()=>setEditingPrompt(true)} style={{fontSize:"12px",color:"#444",margin:0,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"text",padding:"5px 0"}}>{prompt||"Klicka for att redigera prompt..."}</p>)}</div>
         <div style={{display:"flex",gap:"6px",flexShrink:0,marginLeft:"10px"}}>
           <button onClick={()=>router.push("/projects/"+projectId+"/qr")} style={{padding:"6px 10px",background:"transparent",border:"1px solid #bbb",borderRadius:"8px",fontSize:"12px",color:"#555",cursor:"pointer"}}>+ Bilder</button>
           <button onClick={generateAll} disabled={anyLoading||uploads.length===0} style={{padding:"6px 14px",background:anyLoading?"#aaa":"#1a56db",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:anyLoading?"not-allowed":"pointer"}}>{anyLoading?"Genererar...":"Generera alla"}</button>
@@ -47,19 +47,19 @@ export default function GeneratePage(){
         ):cur.aiImage?(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"12px",maxWidth:"600px",width:"100%"}}>
           <img src={cur.aiImage} style={{maxWidth:"100%",maxHeight:"320px",borderRadius:"12px",boxShadow:"0 4px 20px rgba(0,0,0,0.15)"}} alt="AI"/>
           <div style={{display:"flex",gap:"8px",flexWrap:"wrap",justifyContent:"center"}}>
-            <button onClick={()=>dlUrl(cur.aiImage!,"ai-bild.jpg")} style={B("#555")}>⬇ Ladda ner</button>
-            <button onClick={()=>shareOrDl(cur.aiImage!,"ai-bild.jpg","image/jpeg")} style={B("#1a56db")}>↗ Dela</button>
+            <button onClick={()=>dlUrl(cur.aiImage!,"ai-bild.jpg")} style={B("#555")}>Ladda ner</button>
+            <button onClick={()=>shareOrDl(cur.aiImage!,"ai-bild.jpg","image/jpeg")} style={B("#1a56db")}>Dela</button>
           </div>
           <div style={{display:"flex",gap:"8px",flexWrap:"wrap",justifyContent:"center"}}>
-            {cur.model3d?(<button onClick={()=>setTab("3d")} style={B(cur.segTaskId?"#f59e0b":"#22c55e")}>{cur.segTaskId?"Visa segmenterad → 3D →</button>
+            {cur.model3d?(<button onClick={()=>setTab("3d")} style={B(cur.segTaskId?"#f59e0b":"#22c55e")}>{cur.segTaskId?"Visa segmenterad":"Visa 3D"}</button>
             ):cur.tripoState==="loading"?(<div style={{display:"flex",alignItems:"center",gap:"8px"}}><div style={{width:"120px",height:"5px",background:"#ddd",borderRadius:"3px",overflow:"hidden"}}><div style={{width:(cur.tripoProgress||0)+"%",height:"100%",background:"#7c3aed",transition:"width 0.5s"}}/></div><p style={{color:"#7c3aed",fontSize:"11px",margin:0}}>{cur.tripoProgress||0}%</p></div>
-            ):cur.tripoState==="error"?(<button onClick={()=>runTripo(selected,false)} style={B("#ef4444")}>Försök igen →</button>
-            ):(<><button onClick={()=>runTripo(selected,false)} style={B("#7c3aed")}>Skapa 3D →</button><button onClick={()=>runTripo(selected,true)} style={B("#f59e0b")}>Segmentering →</button></>)}
+            ):cur.tripoState==="error"?(<button onClick={()=>runTripo(selected,false)} style={B("#ef4444")}>Forsok igen</button>
+            ):(<><button onClick={()=>runTripo(selected,false)} style={B("#7c3aed")}>Skapa 3D</button><button onClick={()=>runTripo(selected,true)} style={B("#f59e0b")}>Segmentering</button></>)}
           </div>
-        </div>):cur.genState==="error"?(<div style={{textAlign:"center"}}><p style={{color:"#ef4444",fontSize:"13px",marginBottom:"8px"}}>Fel: {cur.aiError}</p><button onClick={()=>generateOne(selected)} style={B("#1a56db")}>Försök igen</button></div>
-        ):(<div style={{textAlign:"center"}}><p style={{color:"#888",fontSize:"13px",marginBottom:"8px"}}>Ingen AI-bild ännu</p><button onClick={()=>generateOne(selected)} style={B("#1a56db")}>Generera denna</button></div>)
+        </div>):cur.genState==="error"?(<div style={{textAlign:"center"}}><p style={{color:"#ef4444",fontSize:"13px",marginBottom:"8px"}}>Fel: {cur.aiError}</p><button onClick={()=>generateOne(selected)} style={B("#1a56db")}>Forsok igen</button></div>
+        ):(<div style={{textAlign:"center"}}><p style={{color:"#888",fontSize:"13px",marginBottom:"8px"}}>Ingen AI-bild</p><button onClick={()=>generateOne(selected)} style={B("#1a56db")}>Generera</button></div>)
         ):tab==="skiss"?(<SkissView projectId={projectId} upload={cur}/>
-        ):(cur.segTaskId?<SegViewer modelUrl={cur.model3d||""} segTaskId={cur.segTaskId} projectId={projectId} uploadId={cur.id}/>:cur.model3d?<ModelViewer modelUrl={cur.model3d} uploadId={cur.id}/>:(<p style={{color:"#888",fontSize:"13px"}}>{cur.aiImage?"Klicka Skapa 3D":"Generera AI-bild först"}</p>))}
+        ):(cur.segTaskId?<SegViewer modelUrl={cur.model3d||""} segTaskId={cur.segTaskId} projectId={projectId} uploadId={cur.id}/>:cur.model3d?<ModelViewer modelUrl={cur.model3d} uploadId={cur.id}/>:(<p style={{color:"#888",fontSize:"13px"}}>{cur.aiImage?"Klicka Skapa 3D":"Generera AI-bild forst"}</p>))}
       </div>
     </div>
     <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -72,12 +72,10 @@ function SkissView({projectId,upload}:{projectId:string;upload:Upload}){
   return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"12px",maxWidth:"600px",width:"100%"}}>
     <img src={src} style={{maxWidth:"100%",maxHeight:"380px",borderRadius:"12px"}} alt="Skiss"/>
     <div style={{display:"flex",gap:"8px"}}>
-      <button onClick={()=>dlUrl(src,"skiss.jpg")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>⬇ Ladda ner</button>
-      <button onClick={()=>shareOrDl(src,"skiss.jpg","image/jpeg")} style={{padding:"7px 14px",background:"#1a56db",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>↗ Dela</button>
+      <button onClick={()=>dlUrl(src,"skiss.jpg")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Ladda ner</button>
+      <button onClick={()=>shareOrDl(src,"skiss.jpg","image/jpeg")} style={{padding:"7px 14px",background:"#1a56db",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Dela</button>
     </div>
   </div>);}
-
-
 
 function MRCodeModal({modelUrl,uploadId,onClose}:{modelUrl:string;uploadId:number;onClose:()=>void}){
   const[code,setCode]=useState<string|null>(null);
@@ -88,17 +86,16 @@ function MRCodeModal({modelUrl,uploadId,onClose}:{modelUrl:string;uploadId:numbe
   },[modelUrl,uploadId]);
   return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}} onClick={onClose}>
     <div style={{background:"white",borderRadius:"16px",padding:"32px",textAlign:"center",maxWidth:"320px",width:"90%"}} onClick={e=>e.stopPropagation()}>
-      <div style={{fontSize:"40px",marginBottom:"12px"}}>🥽</div>
+      <div style={{fontSize:"40px",marginBottom:"12px"}}>&#x1F97D;</div>
       <h2 style={{margin:"0 0 8px",fontSize:"20px",fontWeight:700,color:"#111"}}>Visa i Mixed Reality</h2>
-      <p style={{fontSize:"13px",color:"#666",marginBottom:"24px"}}>Öppna Meta Quest Browser och gå till:<br/><strong style={{color:"#1a56db"}}>{window.location.origin}/ar</strong></p>
+      <p style={{fontSize:"13px",color:"#666",marginBottom:"24px"}}>Oppna Meta Quest Browser och ga till:<br/><strong style={{color:"#1a56db"}}>{typeof window!=="undefined"?window.location.origin:""}/ar</strong></p>
       {loading?(<div style={{width:"64px",height:"64px",border:"4px solid #f59e0b",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",margin:"0 auto"}}/>
       ):(<div style={{display:"flex",gap:"12px",justifyContent:"center",marginBottom:"20px"}}>
         {(code||"---").split("").map((d,i)=>(<div key={i} style={{width:"64px",height:"80px",background:"#f59e0b",borderRadius:"12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"40px",fontWeight:700,color:"white"}}>{d}</div>))}
       </div>)}
-      <p style={{fontSize:"11px",color:"#aaa",marginBottom:"16px"}}>Koden är giltig i 24 timmar</p><div style={{background:"#f3f4f6",borderRadius:"8px",padding:"8px 10px",marginBottom:"12px",textAlign:"left"}}><p style={{fontSize:"10px",color:"#888",margin:"0 0 2px",fontWeight:600}}>GLB-URL för Unreal:</p><p style={{fontSize:"11px",color:"#1a56db",margin:0,wordBreak:"break-all",userSelect:"all"}}>{window.location.origin+"/api/proxy?url="+encodeURIComponent(modelUrl)}</p></div>
-      <button onClick={onClose} style={{width:"100%",padding:"10px",background:"#333",border:"none",borderRadius:"8px",color:"white",fontSize:"14px",cursor:"pointer"}}>Stäng</button>
+      <p style={{fontSize:"11px",color:"#aaa",marginBottom:"16px"}}>Koden ar giltig i 24 timmar</p>
+      <button onClick={onClose} style={{width:"100%",padding:"10px",background:"#333",border:"none",borderRadius:"8px",color:"white",fontSize:"14px",cursor:"pointer"}}>Stang</button>
     </div>
-    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
   </div>);}
 
 function ModelViewer({modelUrl,uploadId}:{modelUrl:string;uploadId:number}){
@@ -111,12 +108,12 @@ function ModelViewer({modelUrl,uploadId}:{modelUrl:string;uploadId:number}){
   return(<div style={{width:"100%",maxWidth:"600px",display:"flex",flexDirection:"column",gap:"10px"}}>
     <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5"}}>
       <div ref={ref} style={{width:"100%",height:"360px",background:"#f5e8e5",display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"#999",fontSize:"12px"}}>Laddar...</p></div>
-      <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra för att rotera Â· Scroll för zoom</p>
+      <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra for att rotera - Scroll for zoom</p>
     </div>
     <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}>
-      <button onClick={()=>dlUrl(proxySrc,"3d-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>⬇ Ladda ner GLB</button>
-      <button onClick={()=>{if((navigator as any).share)(navigator as any).share({title:"3D",url:window.location.origin+proxySrc}).catch(()=>dlUrl(proxySrc,"3d-modell.glb"));else dlUrl(proxySrc,"3d-modell.glb");}} style={{padding:"7px 14px",background:"#7c3aed",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>↗ Dela</button>
-      <button onClick={()=>setShowMR(true)} style={{padding:"7px 14px",background:"#0ea5e9",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>🥽 Visa i MR</button>
+      <button onClick={()=>dlUrl(proxySrc,"3d-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Ladda ner GLB</button>
+      <button onClick={()=>shareOrDl(proxySrc,"3d-modell.glb","model/gltf-binary")} style={{padding:"7px 14px",background:"#7c3aed",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Dela</button>
+      <button onClick={()=>setShowMR(true)} style={{padding:"7px 14px",background:"#0ea5e9",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Visa i MR</button>
     </div>
     {showMR&&<MRCodeModal modelUrl={modelUrl} uploadId={uploadId} onClose={()=>setShowMR(false)}/>}
   </div>);}
@@ -134,19 +131,16 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId}:{modelUrl:string;segT
   const[statusMsg,setStatusMsg]=useState("");
   const[error,setError]=useState("");
   const[showMR,setShowMR]=useState(false);
-
   useEffect(()=>{
     if(!modelUrl)return;
     fetch("/api/tripo/split-glb?modelUrl="+encodeURIComponent(modelUrl))
       .then(r=>r.json()).then(d=>{setMeshNames(d.names||[]);setLoadingNames(false);})
       .catch(()=>setLoadingNames(false));
   },[modelUrl]);
-
   useEffect(()=>{if(!ref.current)return;if(!document.querySelector('script[data-mv]')){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
     const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer")as any;mv.setAttribute("src",proxySrc);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.style.cssText="width:100%;height:320px;background:#f5e8e5;";ref.current.innerHTML="";ref.current.appendChild(mv);};
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
     return()=>{if(ref.current)ref.current.innerHTML="";};},[proxySrc]);
-
   async function applyTexture(){
     if(!selPart||!partPrompt.trim())return;
     setProcessing(true);setProgress(0);setError("");
@@ -167,30 +161,29 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId}:{modelUrl:string;segT
         if(pd.status==="failed"||pd.status==="cancelled"){setError("Texturering misslyckades");setProcessing(false);return;}}
       setError("Timeout");setProcessing(false);
     }catch(e){setError(String(e));setProcessing(false);}}
-
   return(<div style={{width:"100%",maxWidth:"600px",display:"flex",flexDirection:"column",gap:"10px"}}>
     <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5"}}>
       <div ref={ref} style={{width:"100%",height:"320px",background:"#f5e8e5",display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"#999",fontSize:"12px"}}>Laddar...</p></div>
-      <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra för att rotera Â· Scroll för zoom</p>
+      <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra for att rotera - Scroll for zoom</p>
     </div>
     <div style={{background:"white",borderRadius:"10px",padding:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
-      <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>Ändra en specifik del</p>
-      {loadingNames?(<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Läser delar...</p>):(
+      <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>Andra en specifik del</p>
+      {loadingNames?(<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Laser delar...</p>):(
         <><div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"8px"}}>
           {meshNames.length>0?meshNames.map(n=>(<button key={n} onClick={()=>!processing&&setSelPart(n===selPart?null:n)} style={{padding:"4px 10px",background:selPart===n?"#f59e0b":"#f3f4f6",border:"none",borderRadius:"6px",fontSize:"11px",fontWeight:selPart===n?600:400,color:selPart===n?"white":"#555",cursor:processing?"not-allowed":"pointer"}}>{n}</button>))
           :<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Inga delar hittades</p>}
         </div>
         {selPart&&!processing&&(<div style={{display:"flex",gap:"8px"}}>
           <input value={partPrompt} onChange={e=>setPartPrompt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&applyTexture()} placeholder={"Beskriv "+selPart+"..."} style={{flex:1,padding:"7px 10px",borderRadius:"7px",border:"1px solid #ddd",fontSize:"12px",outline:"none"}}/>
-          <button onClick={applyTexture} disabled={!partPrompt.trim()} style={{padding:"7px 14px",background:"#f59e0b",border:"none",borderRadius:"7px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Ändra</button>
+          <button onClick={applyTexture} disabled={!partPrompt.trim()} style={{padding:"7px 14px",background:"#f59e0b",border:"none",borderRadius:"7px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Andra</button>
         </div>)}
         {processing&&(<div style={{marginTop:"6px"}}><div style={{width:"100%",height:"5px",background:"#eee",borderRadius:"3px",overflow:"hidden",marginBottom:"4px"}}><div style={{width:progress+"%",height:"100%",background:"#f59e0b",transition:"width 0.5s"}}/></div><p style={{fontSize:"11px",color:"#f59e0b",margin:0}}>{statusMsg} {progress}%</p></div>)}
         {error&&<p style={{color:"#ef4444",fontSize:"11px",margin:"4px 0 0"}}>{error}</p>}
         </>)}
     </div>
     <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}>
-      <button onClick={()=>dlUrl(proxySrc,"seg-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>⬇ Ladda ner GLB</button>
-      <button onClick={()=>setShowMR(true)} style={{padding:"7px 14px",background:"#0ea5e9",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>🥽 Visa i MR</button>
+      <button onClick={()=>dlUrl(proxySrc,"seg-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Ladda ner GLB</button>
+      <button onClick={()=>setShowMR(true)} style={{padding:"7px 14px",background:"#0ea5e9",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Visa i MR</button>
     </div>
     {showMR&&<MRCodeModal modelUrl={currentUrl} uploadId={uploadId} onClose={()=>setShowMR(false)}/>}
   </div>);}
