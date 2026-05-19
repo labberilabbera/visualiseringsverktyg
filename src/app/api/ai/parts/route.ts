@@ -25,27 +25,32 @@ export async function POST(req: NextRequest) {
     );
 
     const names: Record<string, string> = {};
-    let rawText = "";
     if (res.ok) {
       const data = await res.json();
-      rawText = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-      const clean = rawText.replace(/```json/g,"").replace(/```/g,"").trim();
-      const match = clean.match(/[[sS]*]/);
-      if (match) {
-        try {
-          const arr: string[] = JSON.parse(match[0]);
-          for (let i = 0; i < n; i++) {
-            if (arr[i] && typeof arr[i] === "string" && arr[i].trim()) {
-              names["tripo_part_" + i] = arr[i].trim();
-            }
+      const rawText = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+      // Prova direkt JSON.parse forst, sen med regex
+      let arr: string[] = [];
+      try {
+        arr = JSON.parse(rawText);
+      } catch {
+        const idx1 = rawText.indexOf("[");
+        const idx2 = rawText.lastIndexOf("]");
+        if (idx1 !== -1 && idx2 !== -1 && idx2 > idx1) {
+          try { arr = JSON.parse(rawText.substring(idx1, idx2 + 1)); } catch {}
+        }
+      }
+      if (Array.isArray(arr)) {
+        for (let i = 0; i < n; i++) {
+          if (arr[i] && typeof arr[i] === "string" && arr[i].trim()) {
+            names["tripo_part_" + i] = arr[i].trim();
           }
-        } catch (e) {}
+        }
       }
     }
     for (let i = 0; i < n; i++) {
       if (!names["tripo_part_" + i]) names["tripo_part_" + i] = "Del " + (i + 1);
     }
-    return NextResponse.json({ names, rawText });
+    return NextResponse.json({ names });
   } catch (e) {
     return NextResponse.json({ names: {}, error: String(e) });
   }
