@@ -141,12 +141,11 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       .then(r=>r.json()).then(async d=>{
         const names:string[]=d.names||[];
         setMeshNames(names);
-        // Lat Gemini namnge delarna baserat pa AI-bilden
         if(names.length>0&&aiImage){
           try{
             const res=await fetch("/api/ai/parts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageData:aiImage,partCount:names.length})});
             const json=await res.json();
-            if(json.names) setPartLabels(json.names);
+            if(json.names&&Object.keys(json.names).length>0) setPartLabels(json.names);
           }catch{}
         }
         setLoadingNames(false);
@@ -155,7 +154,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
 
   useEffect(()=>{
     if(!ref.current)return;
-    if(!document.querySelector('script[data-mv]')){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
+    if(!document.querySelector("script[data-mv]")){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
     const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer") as any;mv.setAttribute("src",proxySrc);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.style.cssText="width:100%;height:300px;background:#f5e8e5;";ref.current.innerHTML="";ref.current.appendChild(mv);};
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
     return()=>{if(ref.current)ref.current.innerHTML="";};},[proxySrc]);
@@ -164,17 +163,18 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
 
   async function generatePreview(){
     if(!selPart||!partPrompt.trim())return;
+    if(!aiImage){setError("Ingen AI-bild tillganglig");setStep("prompting");return;}
     setStep("previewing");setPreviewImg(null);setError("");
     try{
       const label=partLabels[selPart]||selPart;
-      const prompt="Take this image and modify ONLY the "+label+" part to look like: "+partPrompt+". Keep everything else exactly the same. Show the complete object.";
-      const body:any={prompt};
-      if(aiImage){const b64=aiImage.includes(",")?aiImage.split(",")[1]:aiImage;body.images=[{data:b64,mimeType:"image/jpeg"}];}
-      const res=await fetch("/api/ai/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      const prompt="Take this image and modify ONLY the "+label+" to look like: "+partPrompt+". Keep everything else exactly the same. Show the complete object.";
+      const b64=aiImage.includes(",")?aiImage.split(",")[1]:aiImage;
+      const res=await fetch("/api/ai/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,images:[{data:b64,mimeType:"image/jpeg"}]})});
+      if(!res.ok){setError("Fel "+res.status+" - forsok igen");setStep("prompting");return;}
       const json=await res.json();
       if(json.images?.[0])setPreviewImg(json.images[0]);
-      else{setError("Kunde inte generera forhandsgranskning");setStep("prompting");}
-    }catch(e){setError(String(e));setStep("prompting");}
+      else{setError(json.error||"Kunde inte generera forhandsgranskning");setStep("prompting");}
+    }catch(e){setError("Natverksfel: "+String(e));setStep("prompting");}
   }
 
   async function applyTexture(){
@@ -186,8 +186,8 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       const splitJson=await splitRes.json();
       if(!splitJson.taskId){setError(splitJson.error||"Extraktion misslyckades");setStep("prompting");return;}
       let ok=false;
-      for(let a=0;a<20;a++){await new Promise(r=>setTimeout(r,2000));const pd=await(await fetch("/api/tripo/generate?taskId="+splitJson.taskId)).json();setProgress(Math.round((a/20)*30));if(pd.status==="success"){ok=true;break;}if(pd.status==="failed"){setError("Import misslyckades");setStep("prompting");return;}}
-      if(!ok){setError("Timeout");setStep("prompting");return;}
+      for(let a=0;a<20;a++){await new Promise(r=>setTimeout(r,3000));const pd=await(await fetch("/api/tripo/generate?taskId="+splitJson.taskId)).json();setProgress(Math.round((a/20)*30));if(pd.status==="success"){ok=true;break;}if(pd.status==="failed"){setError("Import misslyckades");setStep("prompting");return;}}
+      if(!ok){setError("Import timeout");setStep("prompting");return;}
       setStatusMsg("Texturerar...");
       const txRes=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:splitJson.taskId,prompt:partPrompt})});
       const txJson=await txRes.json();
@@ -203,15 +203,13 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       <div ref={ref} style={{width:"100%",height:"300px"}}/>
       <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra for att rotera - Scroll for zoom</p>
     </div>
-
     {step==="idle"&&(<div style={{background:"white",borderRadius:"10px",padding:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>Klicka pa en del for att andra den:</p>
-      {loadingNames?<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Analyserar delar med AI...</p>
+      {loadingNames?<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Analyserar delar...</p>
       :meshNames.length>0?(<div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
         {meshNames.map(n=>{const label=partLabels[n]||n;return(<button key={n} onClick={()=>selectPart(n)} title={n} style={{padding:"6px 12px",background:"#f59e0b",border:"none",borderRadius:"6px",fontSize:"11px",fontWeight:500,color:"white",cursor:"pointer"}}>{label}</button>);})}
       </div>):<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Inga delar hittades</p>}
     </div>)}
-
     {step==="prompting"&&selPart&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       <p style={{margin:"0 0 10px",fontSize:"12px",fontWeight:600,color:"#333"}}>Vald del: <span style={{background:"#f59e0b22",color:"#f59e0b",padding:"2px 8px",borderRadius:"4px"}}>{partLabels[selPart]||selPart}</span></p>
       <div style={{display:"flex",gap:"8px",marginBottom:"6px"}}>
@@ -221,12 +219,11 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       {error&&<p style={{color:"#ef4444",fontSize:"11px",margin:"4px 0"}}>{error}</p>}
       <button onClick={()=>{setStep("idle");setSelPart(null);}} style={{fontSize:"11px",color:"#888",background:"none",border:"none",cursor:"pointer"}}>Avbryt</button>
     </div>)}
-
     {step==="previewing"&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
-      {!previewImg?(<div style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 0"}}><div style={{width:"20px",height:"20px",border:"2px solid #1a56db",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}}/><p style={{margin:0,fontSize:"12px",color:"#555"}}>Genererar forhandsgranskning...</p></div>
+      {!previewImg?(<div style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 0"}}><div style={{width:"20px",height:"20px",border:"2px solid #1a56db",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}}/><p style={{margin:0,fontSize:"12px",color:"#555"}}>Genererar forhandsgranskning med AI...</p></div>
       ):(<>
         <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>{partLabels[selPart!]||selPart}: "{partPrompt}"</p>
-        <img src={previewImg.startsWith("data:")?previewImg:"data:image/jpeg;base64,"+previewImg} style={{width:"100%",maxHeight:"180px",objectFit:"contain",borderRadius:"8px",marginBottom:"10px",background:"#f5f5f5"}} alt="Forhandsgranskning"/>
+        <img src={previewImg.startsWith("data:")?previewImg:"data:image/jpeg;base64,"+previewImg} style={{width:"100%",maxHeight:"200px",objectFit:"contain",borderRadius:"8px",marginBottom:"10px",background:"#f5f5f5"}} alt="Forhandsgranskning"/>
         <div style={{display:"flex",gap:"8px"}}>
           <button onClick={applyTexture} style={{flex:1,padding:"9px",background:"#22c55e",border:"none",borderRadius:"8px",fontSize:"13px",fontWeight:600,color:"white",cursor:"pointer"}}>Godkann - Kor i Tripo</button>
           <button onClick={()=>setStep("prompting")} style={{padding:"9px 12px",background:"#f3f4f6",border:"none",borderRadius:"8px",fontSize:"12px",color:"#555",cursor:"pointer"}}>Justera</button>
@@ -234,12 +231,10 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
         </div>
       </>)}
     </div>)}
-
     {step==="texturing"&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       <div style={{width:"100%",height:"5px",background:"#eee",borderRadius:"3px",overflow:"hidden",marginBottom:"6px"}}><div style={{width:progress+"%",height:"100%",background:"#22c55e",transition:"width 0.5s"}}/></div>
       <p style={{fontSize:"11px",color:"#22c55e",margin:0}}>{statusMsg} {progress}%</p>
     </div>)}
-
     <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}>
       <button onClick={()=>dlUrl(proxySrc,"seg-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Ladda ner GLB</button>
       <button onClick={()=>setShowMR(true)} style={{padding:"7px 14px",background:"#0ea5e9",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Visa i MR</button>
