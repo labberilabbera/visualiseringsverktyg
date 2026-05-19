@@ -26,10 +26,12 @@ export async function POST(req: NextRequest) {
     );
 
     const names: Record<string, string> = {};
+    let rawText = "";
     if (res.ok) {
       const data = await res.json();
-      const raw = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-      const match = raw.match(/[[sS]*?]/);
+      rawText = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+      const clean = rawText.replace(/```json/g,"").replace(/```/g,"").trim();
+      const match = clean.match(/[[sS]*]/);
       if (match) {
         try {
           const arr: string[] = JSON.parse(match[0]);
@@ -41,12 +43,11 @@ export async function POST(req: NextRequest) {
         } catch (e) {}
       }
     }
-    // Fallback om Gemini failar
     for (let i = 0; i < n; i++) {
       if (!names["tripo_part_" + i]) names["tripo_part_" + i] = "Del " + (i + 1);
     }
-    return NextResponse.json({ names });
+    return NextResponse.json({ names, rawText });
   } catch (e) {
-    return NextResponse.json({ names: {} });
+    return NextResponse.json({ names: {}, error: String(e) });
   }
 }
