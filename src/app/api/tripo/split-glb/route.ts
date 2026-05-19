@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
         "x-amz-security-token": sts.session_token,
         "Authorization": "AWS " + sts.sts_ak + ":" + sts.sts_sk,
       },
-      body: partGLB,
+      body: new Uint8Array(partGLB),
     });
 
     // S3 PUT kan returnera 403 utan signering - anvand accelerate endpoint
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
           "Content-Type": "application/octet-stream",
           "x-amz-security-token": sts.session_token,
         },
-        body: partGLB,
+        body: new Uint8Array(partGLB),
       });
       if (!accelRes.ok) {
         return NextResponse.json({ error: "s3_upload_failed", status: accelRes.status, url: accelUrl }, { status: 502 });
