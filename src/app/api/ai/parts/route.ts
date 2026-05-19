@@ -8,27 +8,45 @@ export async function POST(req: NextRequest) {
   try {
     const { imageData, partCount } = await req.json();
     const n = Math.max(1, Math.min(partCount || 16, 32));
-    const keys = Array.from({length:n}, (_:any,i:number)=>"tripo_part_"+i);
-    const example = '{"tripo_part_0":"Kaross","tripo_part_1":"Framhjul"}';
-    const prompt = "This 3D model has " + n + " mesh parts named " + keys.join(", ") + ". Based on the image, assign a short Swedish name to each part. Return ONLY valid JSON like: " + example + " for all " + n + " parts. No other text.";
-    const body: any = {
-      contents: [{ parts: [
-        { text: prompt },
-        ...(imageData ? [{ inline_data: { mime_type: "image/jpeg", data: imageData.includes(",") ? imageData.split(",")[1] : imageData } }] : [])
-      ]}],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 512 }
+
+    // Enkel prompt: lista N svenska namn for delarna i bilden
+    const prompt = "Look at this object in the image. It has been 3D-scanned and split into " + n + " separate mesh parts. List exactly " + n + " short Swedish names for the parts of this object (like Kaross, Framhjul, Bakhjul, Fonsterglas, Motorhuv, Stankskarm, etc). Return ONLY a JSON array with exactly " + n + " strings. Example: ["Kaross","Framhjul","Bakhjul","Fonsterglas","Motorhuv","Stankskarm"]";
+
+    const parts: any[] = [{ text: prompt }];
+    if (imageData) {
+      const b64 = imageData.includes(",") ? imageData.split(",")[1] : imageData;
+      parts.push({ inline_data: { mime_type: "image/jpeg", data: b64 } });
+    }
+
+    const body = {
+      contents: [{ parts }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 512 }
     };
+
     const res = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=" + key,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
     );
-    if (!res.ok) return NextResponse.json({ names: {} });
+
+    if (!res.ok) {
+      const fallback: Record<string,string> = {};
+      for(let i=0;i<n;i++) fallback["tripo_part_"+i] = "Del "+(i+1);
+      return NextResponse.json({ names: fallback });
+    }
+
     const data = await res.json();
-    const text = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}").replace(/[\u0060]{3}(json)?/g,"").trim();
-    let names: Record<string,string> = {};
-    try { names = JSON.parse(text); } catch { names = {}; }
-    if(Object.keys(names).length === 0){
-      keys.forEach((k:string,i:number)=>{ names[k] = "Del "+(i+1); });
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    // Extrahera JSON array ur svaret
+    const match = raw.match(/\[.*?\]/s);
+    let arr: string[] = [];
+    if (match) {
+      try { arr = JSON.parse(match[0]); } catch {}
+    }
+
+    // Bygg names-objekt
+    const names: Record<string,string> = {};
+    for (let i=0; i<n; i++) {
+      names["tripo_part_"+i] = (arr[i] && typeof arr[i]==="string") ? arr[i] : "Del "+(i+1);
     }
     return NextResponse.json({ names });
   } catch (e) {
