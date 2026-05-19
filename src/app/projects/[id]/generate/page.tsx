@@ -122,71 +122,46 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   const ref=useRef<HTMLDivElement>(null);
   const[currentUrl,setCurrentUrl]=useState(modelUrl);
   const proxySrc="/api/proxy?url="+encodeURIComponent(currentUrl);
+  const[meshNames,setMeshNames]=useState<string[]>([]);
+  const[loadingNames,setLoadingNames]=useState(true);
   const[selPart,setSelPart]=useState<string|null>(null);
   const[partPrompt,setPartPrompt]=useState("");
   const[previewImg,setPreviewImg]=useState<string|null>(null);
-  const[step,setStep]=useState<"idle"|"picking"|"prompting"|"previewing"|"texturing">("idle");
+  const[step,setStep]=useState<"idle"|"prompting"|"previewing"|"texturing">("idle");
   const[progress,setProgress]=useState(0);
   const[statusMsg,setStatusMsg]=useState("");
   const[error,setError]=useState("");
   const[showMR,setShowMR]=useState(false);
-  const mvRef=useRef<any>(null);
+
+  useEffect(()=>{
+    if(!modelUrl)return;
+    fetch("/api/tripo/split-glb?modelUrl="+encodeURIComponent(modelUrl))
+      .then(r=>r.json()).then(d=>{setMeshNames(d.names||[]);setLoadingNames(false);})
+      .catch(()=>setLoadingNames(false));
+  },[modelUrl]);
 
   useEffect(()=>{
     if(!ref.current)return;
     if(!document.querySelector('script[data-mv]')){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
-    const build=()=>{
-      if(!ref.current)return;
-      const mv=document.createElement("model-viewer") as any;
-      mv.setAttribute("src",proxySrc);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");
-      mv.style.cssText="width:100%;height:320px;background:#f5e8e5;";
-      mvRef.current=mv;
-      // Klick-handler - fungerar nar camera-controls ar av
-      mv.addEventListener("click",(e:MouseEvent)=>{
-        if(mv.getAttribute("camera-controls")!==null) return; // ignorera om camera-controls ar pa
-        try{
-          const rect=mv.getBoundingClientRect();
-          const hit=mv.surfaceFromPoint(e.clientX-rect.left, e.clientY-rect.top);
-          if(hit?.meshName){
-            setSelPart(hit.meshName);
-            setStep("prompting");
-            setPartPrompt("");setPreviewImg(null);setError("");
-            // Sla pa camera-controls igen
-            mv.setAttribute("camera-controls","");
-            mv.style.cursor="grab";
-          }
-        }catch(err){}
-      });
-      ref.current.innerHTML="";ref.current.appendChild(mv);
-    };
+    const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer") as any;mv.setAttribute("src",proxySrc);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.style.cssText="width:100%;height:300px;background:#f5e8e5;";ref.current.innerHTML="";ref.current.appendChild(mv);};
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
     return()=>{if(ref.current)ref.current.innerHTML="";};},[proxySrc]);
 
-  function enterPickMode(){
-    const mv=mvRef.current;
-    if(!mv)return;
-    mv.removeAttribute("camera-controls");
-    mv.style.cursor="crosshair";
-    setStep("picking");
-    setSelPart(null);setPartPrompt("");setPreviewImg(null);setError("");
-  }
-
-  function cancelPick(){
-    const mv=mvRef.current;
-    if(mv){mv.setAttribute("camera-controls","");mv.style.cursor="grab";}
-    setStep("idle");setSelPart(null);
+  function selectPart(name:string){
+    setSelPart(name);setStep("prompting");
+    setPartPrompt("");setPreviewImg(null);setError("");
   }
 
   async function generatePreview(){
     if(!selPart||!partPrompt.trim())return;
     setStep("previewing");setPreviewImg(null);setError("");
     try{
-      const prompt="The object part called "+selPart+" should look like: "+partPrompt+". Show only that part as a product image on white background.";
+      const prompt="Show the part called "+selPart+" looking like: "+partPrompt+". Product image on white background.";
       const body:any={prompt};
-      if(aiImage) body.images=[{data:aiImage.includes(",") ? aiImage.split(",")[1] : aiImage, mimeType:"image/jpeg"}];
+      if(aiImage){const b64=aiImage.includes(",") ? aiImage.split(",")[1] : aiImage;body.images=[{data:b64,mimeType:"image/jpeg"}];}
       const res=await fetch("/api/ai/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
       const json=await res.json();
-      if(json.images?.[0]){setPreviewImg(json.images[0]);}
+      if(json.images?.[0])setPreviewImg(json.images[0]);
       else{setError("Kunde inte generera forhandsgranskning");setStep("prompting");}
     }catch(e){setError(String(e));setStep("prompting");}
   }
@@ -199,50 +174,50 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       const splitRes=await fetch("/api/tripo/split-glb",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({modelUrl:currentUrl,meshName:selPart})});
       const splitJson=await splitRes.json();
       if(!splitJson.taskId){setError(splitJson.error||"Extraktion misslyckades");setStep("prompting");return;}
-      let importDone=false;
-      for(let a=0;a<20;a++){await new Promise(r=>setTimeout(r,2000));const pd=await(await fetch("/api/tripo/generate?taskId="+splitJson.taskId)).json();setProgress(Math.round((a/20)*30));if(pd.status==="success"){importDone=true;break;}if(pd.status==="failed"){setError("Import misslyckades");setStep("prompting");return;}}
-      if(!importDone){setError("Import timeout");setStep("prompting");return;}
+      let ok=false;
+      for(let a=0;a<20;a++){await new Promise(r=>setTimeout(r,2000));const pd=await(await fetch("/api/tripo/generate?taskId="+splitJson.taskId)).json();setProgress(Math.round((a/20)*30));if(pd.status==="success"){ok=true;break;}if(pd.status==="failed"){setError("Import misslyckades");setStep("prompting");return;}}
+      if(!ok){setError("Timeout");setStep("prompting");return;}
       setStatusMsg("Texturerar "+selPart+"...");
       const txRes=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:splitJson.taskId,prompt:partPrompt})});
       const txJson=await txRes.json();
       if(!txJson.taskId){setError("Texturering misslyckades");setStep("prompting");return;}
       for(let a=0;a<60;a++){await new Promise(r=>setTimeout(r,4000));const pd=await(await fetch("/api/tripo/retexture?taskId="+txJson.taskId)).json();setProgress(30+Math.round((pd.progress/100)*70));
-        if(pd.status==="success"&&pd.modelUrl){
-          await fetch("/api/projects/"+projectId+"/uploads/"+uploadId+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({segmentedModelUrl:pd.modelUrl})});
-          setCurrentUrl(pd.modelUrl);setStep("idle");setStatusMsg("");setPartPrompt("");setSelPart(null);setPreviewImg(null);return;}
+        if(pd.status==="success"&&pd.modelUrl){await fetch("/api/projects/"+projectId+"/uploads/"+uploadId+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({segmentedModelUrl:pd.modelUrl})});setCurrentUrl(pd.modelUrl);setStep("idle");setSelPart(null);setPartPrompt("");setPreviewImg(null);return;}
         if(pd.status==="failed"){setError("Texturering misslyckades");setStep("prompting");return;}}
       setError("Timeout");setStep("prompting");
     }catch(e){setError(String(e));setStep("prompting");}}
 
   return(<div style={{width:"100%",maxWidth:"600px",display:"flex",flexDirection:"column",gap:"10px"}}>
-    <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5",position:"relative"}}>
-      <div ref={ref} style={{width:"100%",height:"320px",background:"#f5e8e5"}}/>
-      {step==="picking"&&<div style={{position:"absolute",inset:0,pointerEvents:"none",border:"2px solid #f59e0b",borderRadius:"12px",display:"flex",alignItems:"flex-end",justifyContent:"center",paddingBottom:"12px"}}><span style={{background:"#f59e0b",color:"white",fontSize:"12px",padding:"4px 12px",borderRadius:"20px",fontWeight:600}}>Klicka pa en del av modellen</span></div>}
-      <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>{step==="picking"?"Klicka pa modellen for att valja del":"Dra for att rotera - Scroll for zoom"}</p>
+    <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5"}}>
+      <div ref={ref} style={{width:"100%",height:"300px"}}/>
+      <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra for att rotera - Scroll for zoom</p>
     </div>
 
-    {step==="idle"&&(<div style={{display:"flex",gap:"8px",justifyContent:"center"}}>
-      <button onClick={enterPickMode} style={{padding:"8px 20px",background:"#f59e0b",border:"none",borderRadius:"8px",fontSize:"13px",fontWeight:600,color:"white",cursor:"pointer"}}>Valj del att andra</button>
+    {/* Del-knappar - alltid klickbara */}
+    {step==="idle"&&(<div style={{background:"white",borderRadius:"10px",padding:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
+      <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>Klicka pa en del for att andra den:</p>
+      {loadingNames?<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Laser delar...</p>
+      :meshNames.length>0?(<div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+        {meshNames.map(n=>(<button key={n} onClick={()=>selectPart(n)} style={{padding:"6px 12px",background:"#f59e0b",border:"none",borderRadius:"6px",fontSize:"11px",fontWeight:500,color:"white",cursor:"pointer"}}>{n}</button>))}
+      </div>):<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Inga delar hittades</p>}
     </div>)}
 
-    {step==="picking"&&(<div style={{textAlign:"center"}}>
-      <button onClick={cancelPick} style={{padding:"7px 16px",background:"#f3f4f6",border:"none",borderRadius:"8px",fontSize:"12px",color:"#666",cursor:"pointer"}}>Avbryt</button>
-    </div>)}
-
+    {/* Prompt-steg */}
     {step==="prompting"&&selPart&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
-      <p style={{margin:"0 0 10px",fontSize:"12px",fontWeight:600,color:"#333"}}>Vald del: <span style={{color:"#f59e0b",background:"#f59e0b22",padding:"2px 8px",borderRadius:"4px"}}>{selPart}</span></p>
+      <p style={{margin:"0 0 10px",fontSize:"12px",fontWeight:600,color:"#333"}}>Vald del: <span style={{background:"#f59e0b22",color:"#f59e0b",padding:"2px 8px",borderRadius:"4px"}}>{selPart}</span></p>
       <div style={{display:"flex",gap:"8px",marginBottom:"6px"}}>
-        <input value={partPrompt} onChange={e=>setPartPrompt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&generatePreview()} placeholder={"Beskriv hur "+selPart+" ska se ut..."} style={{flex:1,padding:"8px 10px",borderRadius:"7px",border:"1px solid #ddd",fontSize:"12px",outline:"none"}} autoFocus/>
+        <input autoFocus value={partPrompt} onChange={e=>setPartPrompt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&generatePreview()} placeholder={"Beskriv hur "+selPart+" ska se ut..."} style={{flex:1,padding:"8px 10px",borderRadius:"7px",border:"1px solid #ddd",fontSize:"12px",outline:"none"}}/>
         <button onClick={generatePreview} disabled={!partPrompt.trim()} style={{padding:"8px 14px",background:"#1a56db",border:"none",borderRadius:"7px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer",whiteSpace:"nowrap"}}>Forhandsgranska</button>
       </div>
       {error&&<p style={{color:"#ef4444",fontSize:"11px",margin:"4px 0"}}>{error}</p>}
-      <button onClick={()=>{setStep("idle");setSelPart(null);}} style={{fontSize:"11px",color:"#888",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>Avbryt</button>
+      <button onClick={()=>{setStep("idle");setSelPart(null);}} style={{fontSize:"11px",color:"#888",background:"none",border:"none",cursor:"pointer"}}>Avbryt</button>
     </div>)}
 
+    {/* Forhandsgransknings-steg */}
     {step==="previewing"&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       {!previewImg?(<div style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 0"}}><div style={{width:"20px",height:"20px",border:"2px solid #1a56db",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}}/><p style={{margin:0,fontSize:"12px",color:"#555"}}>Genererar forhandsgranskning...</p></div>
       ):(<>
-        <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>{selPart} - "{partPrompt}"</p>
+        <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>{selPart}: "{partPrompt}"</p>
         <img src={previewImg.startsWith("data:")?previewImg:"data:image/jpeg;base64,"+previewImg} style={{width:"100%",maxHeight:"180px",objectFit:"contain",borderRadius:"8px",marginBottom:"10px",background:"#f5f5f5"}} alt="Forhandsgranskning"/>
         <div style={{display:"flex",gap:"8px"}}>
           <button onClick={applyTexture} style={{flex:1,padding:"9px",background:"#22c55e",border:"none",borderRadius:"8px",fontSize:"13px",fontWeight:600,color:"white",cursor:"pointer"}}>Godkann - Kor i Tripo</button>
@@ -252,6 +227,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       </>)}
     </div>)}
 
+    {/* Texturerings-steg */}
     {step==="texturing"&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       <div style={{width:"100%",height:"5px",background:"#eee",borderRadius:"3px",overflow:"hidden",marginBottom:"6px"}}><div style={{width:progress+"%",height:"100%",background:"#22c55e",transition:"width 0.5s"}}/></div>
       <p style={{fontSize:"11px",color:"#22c55e",margin:0}}>{statusMsg} {progress}%</p>
