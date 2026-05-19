@@ -8,17 +8,16 @@ export async function POST(req: NextRequest) {
   try {
     const { imageData, partCount } = await req.json();
     const n = Math.max(1, Math.min(partCount || 16, 32));
-    const prompt = "Look at this object. It has been split into " + n + " parts. List exactly " + n + " short Swedish names for the parts (e.g. Kaross, Framhjul, Bakhjul, Fonsterglas). Return ONLY a JSON array of " + n + " strings.";
+    const b64 = imageData ? (imageData.includes(",") ? imageData.split(",")[1] : imageData) : null;
+    const prompt = "Titta pa objektet i bilden. Det har delats upp i " + n + " delar. Lista exakt " + n + " korta svenska namn pa delarna (t.ex. Kaross, Framhjul, Bakhjul, Fonsterglas, Motorhuv). Svara ENDAST med en JSON-array med exakt " + n + " strangar.";
 
-    const contentParts: any[] = [{ text: prompt }];
-    if (imageData) {
-      const b64 = imageData.includes(",") ? imageData.split(",")[1] : imageData;
-      contentParts.push({ inline_data: { mime_type: "image/jpeg", data: b64 } });
-    }
+    const parts: any[] = [];
+    if (b64) parts.push({ inline_data: { mime_type: "image/jpeg", data: b64 } });
+    parts.push({ text: prompt });
 
     const body = {
-      contents: [{ parts: contentParts }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 512 }
+      contents: [{ parts }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 256 }
     };
 
     const res = await fetch(
@@ -30,18 +29,21 @@ export async function POST(req: NextRequest) {
     if (res.ok) {
       const data = await res.json();
       const raw = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-      const match = raw.match(/[[sS]*]/);
+      const match = raw.match(/[[sS]*?]/);
       if (match) {
         try {
           const arr: string[] = JSON.parse(match[0]);
           for (let i = 0; i < n; i++) {
-            names["tripo_part_" + i] = (arr[i] && typeof arr[i] === "string") ? arr[i] : "Del " + (i + 1);
+            if (arr[i] && typeof arr[i] === "string" && arr[i].trim()) {
+              names["tripo_part_" + i] = arr[i].trim();
+            }
           }
-        } catch {}
+        } catch (e) {}
       }
     }
-    if (Object.keys(names).length === 0) {
-      for (let i = 0; i < n; i++) names["tripo_part_" + i] = "Del " + (i + 1);
+    // Fallback om Gemini failar
+    for (let i = 0; i < n; i++) {
+      if (!names["tripo_part_" + i]) names["tripo_part_" + i] = "Del " + (i + 1);
     }
     return NextResponse.json({ names });
   } catch (e) {
