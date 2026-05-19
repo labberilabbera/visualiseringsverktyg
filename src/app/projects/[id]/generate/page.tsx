@@ -124,6 +124,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   const[currentUrl,setCurrentUrl]=useState(modelUrl);
   const proxySrc="/api/proxy?url="+encodeURIComponent(currentUrl);
   const[meshNames,setMeshNames]=useState<string[]>([]);
+  const[partLabels,setPartLabels]=useState<Record<string,string>>({});
   const[loadingNames,setLoadingNames]=useState(true);
   const[selPart,setSelPart]=useState<string|null>(null);
   const[partPrompt,setPartPrompt]=useState("");
@@ -137,9 +138,20 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   useEffect(()=>{
     if(!modelUrl)return;
     fetch("/api/tripo/split-glb?modelUrl="+encodeURIComponent(modelUrl))
-      .then(r=>r.json()).then(d=>{setMeshNames(d.names||[]);setLoadingNames(false);})
-      .catch(()=>setLoadingNames(false));
-  },[modelUrl]);
+      .then(r=>r.json()).then(async d=>{
+        const names:string[]=d.names||[];
+        setMeshNames(names);
+        // Lat Gemini namnge delarna baserat pa AI-bilden
+        if(names.length>0&&aiImage){
+          try{
+            const res=await fetch("/api/ai/parts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageData:aiImage,partCount:names.length})});
+            const json=await res.json();
+            if(json.names) setPartLabels(json.names);
+          }catch{}
+        }
+        setLoadingNames(false);
+      }).catch(()=>setLoadingNames(false));
+  },[modelUrl,aiImage]);
 
   useEffect(()=>{
     if(!ref.current)return;
@@ -148,18 +160,16 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
     return()=>{if(ref.current)ref.current.innerHTML="";};},[proxySrc]);
 
-  function selectPart(name:string){
-    setSelPart(name);setStep("prompting");
-    setPartPrompt("");setPreviewImg(null);setError("");
-  }
+  function selectPart(name:string){setSelPart(name);setStep("prompting");setPartPrompt("");setPreviewImg(null);setError("");}
 
   async function generatePreview(){
     if(!selPart||!partPrompt.trim())return;
     setStep("previewing");setPreviewImg(null);setError("");
     try{
-      const prompt="Show the part called "+selPart+" looking like: "+partPrompt+". Product image on white background.";
+      const label=partLabels[selPart]||selPart;
+      const prompt="Show the part called "+label+" looking like: "+partPrompt+". Product image on white background.";
       const body:any={prompt};
-      if(aiImage){const b64=aiImage.includes(",") ? aiImage.split(",")[1] : aiImage;body.images=[{data:b64,mimeType:"image/jpeg"}];}
+      if(aiImage){const b64=aiImage.includes(",")?aiImage.split(",")[1]:aiImage;body.images=[{data:b64,mimeType:"image/jpeg"}];}
       const res=await fetch("/api/ai/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
       const json=await res.json();
       if(json.images?.[0])setPreviewImg(json.images[0]);
@@ -171,14 +181,14 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
     if(!selPart||!partPrompt.trim())return;
     setStep("texturing");setProgress(0);setError("");
     try{
-      setStatusMsg("Extraherar "+selPart+"...");
+      setStatusMsg("Extraherar del...");
       const splitRes=await fetch("/api/tripo/split-glb",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({modelUrl:currentUrl,meshName:selPart})});
       const splitJson=await splitRes.json();
       if(!splitJson.taskId){setError(splitJson.error||"Extraktion misslyckades");setStep("prompting");return;}
       let ok=false;
       for(let a=0;a<20;a++){await new Promise(r=>setTimeout(r,2000));const pd=await(await fetch("/api/tripo/generate?taskId="+splitJson.taskId)).json();setProgress(Math.round((a/20)*30));if(pd.status==="success"){ok=true;break;}if(pd.status==="failed"){setError("Import misslyckades");setStep("prompting");return;}}
       if(!ok){setError("Timeout");setStep("prompting");return;}
-      setStatusMsg("Texturerar "+selPart+"...");
+      setStatusMsg("Texturerar...");
       const txRes=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:splitJson.taskId,prompt:partPrompt})});
       const txJson=await txRes.json();
       if(!txJson.taskId){setError("Texturering misslyckades");setStep("prompting");return;}
@@ -194,31 +204,28 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra for att rotera - Scroll for zoom</p>
     </div>
 
-    {/* Del-knappar - alltid klickbara */}
     {step==="idle"&&(<div style={{background:"white",borderRadius:"10px",padding:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>Klicka pa en del for att andra den:</p>
-      {loadingNames?<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Laser delar...</p>
+      {loadingNames?<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Analyserar delar med AI...</p>
       :meshNames.length>0?(<div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
-        {meshNames.map(n=>(<button key={n} onClick={()=>selectPart(n)} style={{padding:"6px 12px",background:"#f59e0b",border:"none",borderRadius:"6px",fontSize:"11px",fontWeight:500,color:"white",cursor:"pointer"}}>{n}</button>))}
+        {meshNames.map(n=>{const label=partLabels[n]||n;return(<button key={n} onClick={()=>selectPart(n)} title={n} style={{padding:"6px 12px",background:"#f59e0b",border:"none",borderRadius:"6px",fontSize:"11px",fontWeight:500,color:"white",cursor:"pointer"}}>{label}</button>);})}
       </div>):<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Inga delar hittades</p>}
     </div>)}
 
-    {/* Prompt-steg */}
     {step==="prompting"&&selPart&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
-      <p style={{margin:"0 0 10px",fontSize:"12px",fontWeight:600,color:"#333"}}>Vald del: <span style={{background:"#f59e0b22",color:"#f59e0b",padding:"2px 8px",borderRadius:"4px"}}>{selPart}</span></p>
+      <p style={{margin:"0 0 10px",fontSize:"12px",fontWeight:600,color:"#333"}}>Vald del: <span style={{background:"#f59e0b22",color:"#f59e0b",padding:"2px 8px",borderRadius:"4px"}}>{partLabels[selPart]||selPart}</span></p>
       <div style={{display:"flex",gap:"8px",marginBottom:"6px"}}>
-        <input autoFocus value={partPrompt} onChange={e=>setPartPrompt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&generatePreview()} placeholder={"Beskriv hur "+selPart+" ska se ut..."} style={{flex:1,padding:"8px 10px",borderRadius:"7px",border:"1px solid #ddd",fontSize:"12px",outline:"none"}}/>
+        <input autoFocus value={partPrompt} onChange={e=>setPartPrompt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&generatePreview()} placeholder={"Beskriv hur "+(partLabels[selPart]||selPart)+" ska se ut..."} style={{flex:1,padding:"8px 10px",borderRadius:"7px",border:"1px solid #ddd",fontSize:"12px",outline:"none"}}/>
         <button onClick={generatePreview} disabled={!partPrompt.trim()} style={{padding:"8px 14px",background:"#1a56db",border:"none",borderRadius:"7px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer",whiteSpace:"nowrap"}}>Forhandsgranska</button>
       </div>
       {error&&<p style={{color:"#ef4444",fontSize:"11px",margin:"4px 0"}}>{error}</p>}
       <button onClick={()=>{setStep("idle");setSelPart(null);}} style={{fontSize:"11px",color:"#888",background:"none",border:"none",cursor:"pointer"}}>Avbryt</button>
     </div>)}
 
-    {/* Forhandsgransknings-steg */}
     {step==="previewing"&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       {!previewImg?(<div style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 0"}}><div style={{width:"20px",height:"20px",border:"2px solid #1a56db",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}}/><p style={{margin:0,fontSize:"12px",color:"#555"}}>Genererar forhandsgranskning...</p></div>
       ):(<>
-        <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>{selPart}: "{partPrompt}"</p>
+        <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>{partLabels[selPart!]||selPart}: "{partPrompt}"</p>
         <img src={previewImg.startsWith("data:")?previewImg:"data:image/jpeg;base64,"+previewImg} style={{width:"100%",maxHeight:"180px",objectFit:"contain",borderRadius:"8px",marginBottom:"10px",background:"#f5f5f5"}} alt="Forhandsgranskning"/>
         <div style={{display:"flex",gap:"8px"}}>
           <button onClick={applyTexture} style={{flex:1,padding:"9px",background:"#22c55e",border:"none",borderRadius:"8px",fontSize:"13px",fontWeight:600,color:"white",cursor:"pointer"}}>Godkann - Kor i Tripo</button>
@@ -228,7 +235,6 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       </>)}
     </div>)}
 
-    {/* Texturerings-steg */}
     {step==="texturing"&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       <div style={{width:"100%",height:"5px",background:"#eee",borderRadius:"3px",overflow:"hidden",marginBottom:"6px"}}><div style={{width:progress+"%",height:"100%",background:"#22c55e",transition:"width 0.5s"}}/></div>
       <p style={{fontSize:"11px",color:"#22c55e",margin:0}}>{statusMsg} {progress}%</p>
