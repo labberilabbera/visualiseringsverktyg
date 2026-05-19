@@ -6,6 +6,11 @@ export default function PromptPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = params?.id as string;
+  useEffect(()=>{
+    fetch("/api/projects/"+projectId).then(r=>r.json()).then(d=>{
+      if(d.prompt && d.prompt.trim()) router.replace("/projects/"+projectId+"/generate");
+    }).catch(()=>{});
+  },[projectId,router]);
   const [userEmail, setUserEmail] = useState("");
   const [apiOk, setApiOk] = useState<boolean | null>(null);
   const [prompt, setPrompt] = useState("");
