@@ -11,17 +11,16 @@ export async function POST(req: NextRequest) {
     const b64 = imageData ? (imageData.includes(",") ? imageData.split(",")[1] : imageData) : null;
     const prompt = "Titta pa objektet i bilden. Det har delats upp i " + n + " delar. Lista exakt " + n + " korta svenska namn pa delarna (t.ex. Kaross, Framhjul, Bakhjul, Fonsterglas, Motorhuv). Svara ENDAST med en JSON-array med exakt " + n + " strangar.";
 
-    const parts: any[] = [];
-    if (b64) parts.push({ inline_data: { mime_type: "image/jpeg", data: b64 } });
-    parts.push({ text: prompt });
+    const parts: any[] = [{ text: prompt }];
+    if (b64) parts.push({ inlineData: { mimeType: "image/jpeg", data: b64 } });
 
     const body = {
-      contents: [{ parts }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 256 }
+      contents: [{ role: "user", parts }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 512 }
     };
 
     const res = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=" + key,
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=" + key,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
     );
 
