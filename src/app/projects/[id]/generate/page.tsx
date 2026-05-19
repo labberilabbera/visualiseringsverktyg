@@ -167,7 +167,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
     setStep("previewing");setPreviewImg(null);setError("");
     try{
       const label=partLabels[selPart]||selPart;
-      const prompt="Show the part called "+label+" looking like: "+partPrompt+". Product image on white background.";
+      const prompt="Take this image and modify ONLY the "+label+" part to look like: "+partPrompt+". Keep everything else exactly the same. Show the complete object.";
       const body:any={prompt};
       if(aiImage){const b64=aiImage.includes(",")?aiImage.split(",")[1]:aiImage;body.images=[{data:b64,mimeType:"image/jpeg"}];}
       const res=await fetch("/api/ai/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
