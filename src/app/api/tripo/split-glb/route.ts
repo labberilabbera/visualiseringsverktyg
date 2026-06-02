@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import AWS from "@aws-sdk/client-s3";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -21,12 +22,9 @@ function parseGLB(buf: Buffer): { names: string[] } {
       }
     }
     return { names };
-  } catch {
-    return { names: [] };
-  }
+  } catch { return { names: [] }; }
 }
 
-// GET: hämta mesh-namn
 export async function GET(req: NextRequest) {
   const modelUrl = new URL(req.url).searchParams.get("modelUrl");
   if (!modelUrl) return NextResponse.json({ error: "missing_modelUrl" }, { status: 400 });
@@ -36,12 +34,9 @@ export async function GET(req: NextRequest) {
     const buf = Buffer.from(await res.arrayBuffer());
     const { names } = parseGLB(buf);
     return NextResponse.json({ names });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+  } catch (e) { return NextResponse.json({ error: String(e) }, { status: 500 }); }
 }
 
-// POST: extrahera mesh, ladda upp till S3 via STS token, importera till Tripo
 export async function POST(req: NextRequest) {
   const key = process.env.TRIPO_API_KEY;
   if (!key) return NextResponse.json({ error: "no_key" }, { status: 500 });
@@ -49,16 +44,14 @@ export async function POST(req: NextRequest) {
     const { modelUrl, meshName } = await req.json();
     if (!modelUrl || !meshName) return NextResponse.json({ error: "missing_params" }, { status: 400 });
 
-    // Ladda ner original GLB
     const res = await fetch(modelUrl);
     if (!res.ok) return NextResponse.json({ error: "fetch_failed" }, { status: 502 });
     const originalBuf = Buffer.from(await res.arrayBuffer());
 
-    // Extrahera mesh
     const partGLB = extractMeshToGLB(originalBuf, meshName);
     if (!partGLB) return NextResponse.json({ error: "mesh_not_found", meshName }, { status: 404 });
 
-    // Steg 1: Hämta STS token för GLB-uppladdning
+    // Hämta STS token för GLB
     const stsRes = await fetch("https://api.tripo3d.ai/v2/openapi/upload/sts/token", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
@@ -69,38 +62,25 @@ export async function POST(req: NextRequest) {
     const sts = stsData?.data;
     if (!sts) return NextResponse.json({ error: "no_sts_data" }, { status: 502 });
 
-    // Steg 2: Ladda upp GLB till S3 via fetch med AWS Signature
-    // Enklare: använd S3 presigned URL via direktuppladdning med STS credentials
-    const s3Url = "https://" + sts.s3_host + "/" + sts.resource_bucket + "/" + sts.resource_uri;
-    const uploadRes = await fetch(s3Url, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/octet-stream",
-        "x-amz-security-token": sts.session_token,
-        "Authorization": "AWS " + sts.sts_ak + ":" + sts.sts_sk,
+    // Ladda upp till S3 med AWS SDK
+    const s3 = new AWS.S3Client({
+      region: "us-west-2",
+      credentials: {
+        accessKeyId: sts.sts_ak,
+        secretAccessKey: sts.sts_sk,
+        sessionToken: sts.session_token,
       },
-      body: new Uint8Array(partGLB),
+      useAccelerateEndpoint: true,
     });
 
-    // S3 PUT kan returnera 403 utan signering - anvand accelerate endpoint
-    // Fallback: prova med multipart form upload via fetch
-    if (!uploadRes.ok) {
-      // Prova accelerate endpoint
-      const accelUrl = "https://tripo-data.s3-accelerate.amazonaws.com/" + sts.resource_uri;
-      const accelRes = await fetch(accelUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/octet-stream",
-          "x-amz-security-token": sts.session_token,
-        },
-        body: new Uint8Array(partGLB),
-      });
-      if (!accelRes.ok) {
-        return NextResponse.json({ error: "s3_upload_failed", status: accelRes.status, url: accelUrl }, { status: 502 });
-      }
-    }
+    await s3.send(new AWS.PutObjectCommand({
+      Bucket: sts.resource_bucket,
+      Key: sts.resource_uri,
+      Body: partGLB,
+      ContentType: "application/octet-stream",
+    }));
 
-    // Steg 3: Importera till Tripo
+    // Importera till Tripo
     const importRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
@@ -114,9 +94,7 @@ export async function POST(req: NextRequest) {
     const taskId = importData?.data?.task_id;
     if (!taskId) return NextResponse.json({ error: "no_task_id" }, { status: 502 });
     return NextResponse.json({ taskId, meshName, status: "pending" });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+  } catch (e) { return NextResponse.json({ error: String(e) }, { status: 500 }); }
 }
 
 function extractMeshToGLB(originalBuf: Buffer, meshName: string): Buffer | null {
