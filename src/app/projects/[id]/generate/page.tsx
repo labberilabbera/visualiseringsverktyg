@@ -179,22 +179,23 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
 
   async function applyTexture(){
     if(!selPart||!partPrompt.trim())return;
-    setStep("texturing");setProgress(0);setError("");
+    setStep("texturing");setProgress(10);setError("");setStatusMsg("Texturerar "+(partLabels[selPart]||selPart)+"...");
     try{
-      setStatusMsg("Extraherar del...");
-      const splitRes=await fetch("/api/tripo/split-glb",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({modelUrl:currentUrl,meshName:selPart})});
-      const splitJson=await splitRes.json();
-      if(!splitJson.taskId){setError(splitJson.error||"Extraktion misslyckades");setStep("prompting");return;}
-      let ok=false;
-      for(let a=0;a<20;a++){await new Promise(r=>setTimeout(r,3000));const pd=await(await fetch("/api/tripo/generate?taskId="+splitJson.taskId)).json();setProgress(Math.round((a/20)*30));if(pd.status==="success"){ok=true;break;}if(pd.status==="failed"){setError("Import misslyckades");setStep("prompting");return;}}
-      if(!ok){setError("Import timeout");setStep("prompting");return;}
-      setStatusMsg("Texturerar...");
-      const txRes=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:splitJson.taskId,prompt:partPrompt})});
+      // Retextura ORIGINAL-segmenteringen och scope:a till bara vald del via part_names.
+      // Da bevaras hela modellen och endast vald del far ny textur.
+      const txRes=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:segTaskId,prompt:partPrompt,partNames:[selPart]})});
       const txJson=await txRes.json();
-      if(!txJson.taskId){setError("Texturering misslyckades");setStep("prompting");return;}
-      for(let a=0;a<60;a++){await new Promise(r=>setTimeout(r,4000));const pd=await(await fetch("/api/tripo/retexture?taskId="+txJson.taskId)).json();setProgress(30+Math.round((pd.progress/100)*70));
-        if(pd.status==="success"&&pd.modelUrl){await fetch("/api/projects/"+projectId+"/uploads/"+uploadId+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({segmentedModelUrl:pd.modelUrl})});setCurrentUrl(pd.modelUrl);setStep("idle");setSelPart(null);setPartPrompt("");setPreviewImg(null);return;}
-        if(pd.status==="failed"){setError("Texturering misslyckades");setStep("prompting");return;}}
+      if(!txJson.taskId){setError(txJson.error||"Texturering misslyckades");setStep("prompting");return;}
+      for(let a=0;a<90;a++){
+        await new Promise(r=>setTimeout(r,4000));
+        const pd=await(await fetch("/api/tripo/retexture?taskId="+txJson.taskId)).json();
+        if(typeof pd.progress==="number")setProgress(10+Math.round((pd.progress/100)*90));
+        if(pd.status==="success"&&pd.modelUrl){
+          await fetch("/api/projects/"+projectId+"/uploads/"+uploadId+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({segmentedModelUrl:pd.modelUrl})});
+          setCurrentUrl(pd.modelUrl);setStep("idle");setSelPart(null);setPartPrompt("");setPreviewImg(null);setStatusMsg("");return;
+        }
+        if(pd.status==="failed"||pd.status==="cancelled"){setError("Texturering misslyckades"+(pd.errorCode?" (kod "+pd.errorCode+")":""));setStep("prompting");return;}
+      }
       setError("Timeout");setStep("prompting");
     }catch(e){setError(String(e));setStep("prompting");}}
 
