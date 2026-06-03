@@ -9,14 +9,8 @@ export async function POST(req: NextRequest) {
   try {
     const { originalTaskId, prompt, partNames } = await req.json();
     if (!originalTaskId || !prompt) return NextResponse.json({ error: "missing_params" }, { status: 400 });
-    const body: any = {
-      type: "texture_model",
-      original_model_task_id: originalTaskId,
-      prompt,
-    };
-    if (partNames && Array.isArray(partNames) && partNames.length > 0) {
-      body.part_names = partNames;
-    }
+    const body: any = { type: "texture_model", original_model_task_id: originalTaskId, prompt };
+    if (partNames && Array.isArray(partNames) && partNames.length > 0) { body.part_names = partNames; }
     const taskRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
@@ -27,9 +21,7 @@ export async function POST(req: NextRequest) {
     const taskId = taskData?.data?.task_id;
     if (!taskId) return NextResponse.json({ error: "no_task_id", raw: JSON.stringify(taskData) }, { status: 502 });
     return NextResponse.json({ taskId, status: "pending" });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+  } catch (e) { return NextResponse.json({ error: String(e) }, { status: 500 }); }
 }
 
 export async function GET(req: NextRequest) {
@@ -45,5 +37,13 @@ export async function GET(req: NextRequest) {
   const taskData = data?.data;
   const output = taskData?.output ?? null;
   const modelUrl = output?.model ?? output?.pbr_model ?? null;
-  return NextResponse.json({ taskId, status: taskData?.status, progress: taskData?.progress ?? 0, modelUrl });
+  // Exponera Tripos riktiga felinfo for diagnostik
+  return NextResponse.json({
+    taskId,
+    status: taskData?.status,
+    progress: taskData?.progress ?? 0,
+    modelUrl,
+    tripoError: taskData?.error ?? taskData?.error_msg ?? taskData?.message ?? null,
+    raw: JSON.stringify(taskData ?? {}),
+  });
 }
