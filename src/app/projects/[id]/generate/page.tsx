@@ -126,7 +126,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   const[meshNames,setMeshNames]=useState<string[]>([]);
   const[partLabels,setPartLabels]=useState<Record<string,string>>({});
   const[loadingNames,setLoadingNames]=useState(true);
-  const[selPart,setSelPart]=useState<string|null>(null);
+  const[selParts,setSelParts]=useState<string[]>([]);
   const[partPrompt,setPartPrompt]=useState("");
   const[previewImg,setPreviewImg]=useState<string|null>(null);
   const[step,setStep]=useState<"idle"|"prompting"|"previewing"|"texturing">("idle");
@@ -159,15 +159,18 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
     return()=>{if(ref.current)ref.current.innerHTML="";};},[proxySrc]);
 
-  function selectPart(name:string){setSelPart(name);setStep("prompting");setPartPrompt("");setPreviewImg(null);setError("");}
+  function togglePart(name:string){
+    setSelParts(prev=>prev.includes(name)?prev.filter(p=>p!==name):[...prev,name]);
+  }
+  function partLabel(n:string){return partLabels[n]||n;}
+  function selLabels(){return selParts.map(partLabel).join(", ");}
 
   async function generatePreview(){
-    if(!selPart||!partPrompt.trim())return;
+    if(selParts.length===0||!partPrompt.trim())return;
     if(!aiImage){setError("Ingen AI-bild tillganglig");setStep("prompting");return;}
     setStep("previewing");setPreviewImg(null);setError("");
     try{
-      const label=partLabels[selPart]||selPart;
-      const prompt="Take this image and modify ONLY the "+label+" to look like: "+partPrompt+". Keep everything else exactly the same. Show the complete object.";
+      const prompt="Take this image and modify ONLY the "+selLabels()+" to look like: "+partPrompt+". Keep everything else exactly the same. Show the complete object.";
       const b64=aiImage.includes(",")?aiImage.split(",")[1]:aiImage;
       const res=await fetch("/api/ai/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,images:[{data:b64,mimeType:"image/jpeg"}]})});
       if(!res.ok){setError("Fel "+res.status+" - forsok igen");setStep("prompting");return;}
@@ -178,12 +181,10 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   }
 
   async function applyTexture(){
-    if(!selPart||!partPrompt.trim())return;
-    setStep("texturing");setProgress(10);setError("");setStatusMsg("Texturerar "+(partLabels[selPart]||selPart)+"...");
+    if(selParts.length===0||!partPrompt.trim())return;
+    setStep("texturing");setProgress(10);setError("");setStatusMsg("Texturerar "+selLabels()+"...");
     try{
-      // Retextura ORIGINAL-segmenteringen och scope:a till bara vald del via part_names.
-      // Da bevaras hela modellen och endast vald del far ny textur.
-      const txRes=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:segTaskId,prompt:partPrompt,partNames:[selPart]})});
+      const txRes=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:segTaskId,prompt:partPrompt,partNames:selParts})});
       const txJson=await txRes.json();
       if(!txJson.taskId){setError(txJson.error||"Texturering misslyckades");setStep("prompting");return;}
       for(let a=0;a<90;a++){
@@ -192,7 +193,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
         if(typeof pd.progress==="number")setProgress(10+Math.round((pd.progress/100)*90));
         if(pd.status==="success"&&pd.modelUrl){
           await fetch("/api/projects/"+projectId+"/uploads/"+uploadId+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({segmentedModelUrl:pd.modelUrl})});
-          setCurrentUrl(pd.modelUrl);setStep("idle");setSelPart(null);setPartPrompt("");setPreviewImg(null);setStatusMsg("");return;
+          setCurrentUrl(pd.modelUrl);setStep("idle");setSelParts([]);setPartPrompt("");setPreviewImg(null);setStatusMsg("");return;
         }
         if(pd.status==="failed"||pd.status==="cancelled"){setError("Texturering misslyckades"+(pd.errorCode?" (kod "+pd.errorCode+")":""));setStep("prompting");return;}
       }
@@ -204,38 +205,41 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       <div ref={ref} style={{width:"100%",height:"300px"}}/>
       <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra for att rotera - Scroll for zoom</p>
     </div>
-    {step==="idle"&&(<div style={{background:"white",borderRadius:"10px",padding:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
-      <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>Klicka pa en del for att andra den:</p>
+
+    {(step==="idle"||step==="prompting")&&(<div style={{background:"white",borderRadius:"10px",padding:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
+      <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>Valj delar att andra (en eller flera):</p>
       {loadingNames?<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Analyserar delar...</p>
-      :meshNames.length>0?(<div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
-        {meshNames.map(n=>{const label=partLabels[n]||n;return(<button key={n} onClick={()=>selectPart(n)} title={n} style={{padding:"6px 12px",background:"#f59e0b",border:"none",borderRadius:"6px",fontSize:"11px",fontWeight:500,color:"white",cursor:"pointer"}}>{label}</button>);})}
+      :meshNames.length>0?(<div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"10px"}}>
+        {meshNames.map(n=>{const on=selParts.includes(n);return(<button key={n} onClick={()=>togglePart(n)} title={n} style={{padding:"6px 12px",background:on?"#f59e0b":"#f3f4f6",border:on?"2px solid #d97706":"2px solid transparent",borderRadius:"6px",fontSize:"11px",fontWeight:on?600:500,color:on?"white":"#555",cursor:"pointer"}}>{on?"\u2713 ":""}{partLabel(n)}</button>);})}
       </div>):<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Inga delar hittades</p>}
+      {selParts.length>0&&(<>
+        <p style={{margin:"0 0 8px",fontSize:"11px",color:"#666"}}>Valda: <strong style={{color:"#d97706"}}>{selLabels()}</strong></p>
+        <div style={{display:"flex",gap:"8px"}}>
+          <input value={partPrompt} onChange={e=>setPartPrompt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&generatePreview()} placeholder={"Beskriv hur delarna ska se ut..."} style={{flex:1,padding:"8px 10px",borderRadius:"7px",border:"1px solid #ddd",fontSize:"12px",outline:"none"}}/>
+          <button onClick={generatePreview} disabled={!partPrompt.trim()} style={{padding:"8px 14px",background:"#1a56db",border:"none",borderRadius:"7px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer",whiteSpace:"nowrap"}}>Forhandsgranska</button>
+        </div>
+      </>)}
+      {error&&<p style={{color:"#ef4444",fontSize:"11px",margin:"6px 0 0"}}>{error}</p>}
     </div>)}
-    {step==="prompting"&&selPart&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
-      <p style={{margin:"0 0 10px",fontSize:"12px",fontWeight:600,color:"#333"}}>Vald del: <span style={{background:"#f59e0b22",color:"#f59e0b",padding:"2px 8px",borderRadius:"4px"}}>{partLabels[selPart]||selPart}</span></p>
-      <div style={{display:"flex",gap:"8px",marginBottom:"6px"}}>
-        <input autoFocus value={partPrompt} onChange={e=>setPartPrompt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&generatePreview()} placeholder={"Beskriv hur "+(partLabels[selPart]||selPart)+" ska se ut..."} style={{flex:1,padding:"8px 10px",borderRadius:"7px",border:"1px solid #ddd",fontSize:"12px",outline:"none"}}/>
-        <button onClick={generatePreview} disabled={!partPrompt.trim()} style={{padding:"8px 14px",background:"#1a56db",border:"none",borderRadius:"7px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer",whiteSpace:"nowrap"}}>Forhandsgranska</button>
-      </div>
-      {error&&<p style={{color:"#ef4444",fontSize:"11px",margin:"4px 0"}}>{error}</p>}
-      <button onClick={()=>{setStep("idle");setSelPart(null);}} style={{fontSize:"11px",color:"#888",background:"none",border:"none",cursor:"pointer"}}>Avbryt</button>
-    </div>)}
+
     {step==="previewing"&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       {!previewImg?(<div style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 0"}}><div style={{width:"20px",height:"20px",border:"2px solid #1a56db",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}}/><p style={{margin:0,fontSize:"12px",color:"#555"}}>Genererar forhandsgranskning med AI...</p></div>
       ):(<>
-        <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>{partLabels[selPart!]||selPart}: "{partPrompt}"</p>
+        <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>{selLabels()}: "{partPrompt}"</p>
         <img src={previewImg.startsWith("data:")?previewImg:"data:image/jpeg;base64,"+previewImg} style={{width:"100%",maxHeight:"200px",objectFit:"contain",borderRadius:"8px",marginBottom:"10px",background:"#f5f5f5"}} alt="Forhandsgranskning"/>
         <div style={{display:"flex",gap:"8px"}}>
           <button onClick={applyTexture} style={{flex:1,padding:"9px",background:"#22c55e",border:"none",borderRadius:"8px",fontSize:"13px",fontWeight:600,color:"white",cursor:"pointer"}}>Godkann - Kor i Tripo</button>
           <button onClick={()=>setStep("prompting")} style={{padding:"9px 12px",background:"#f3f4f6",border:"none",borderRadius:"8px",fontSize:"12px",color:"#555",cursor:"pointer"}}>Justera</button>
-          <button onClick={()=>{setStep("idle");setSelPart(null);setPreviewImg(null);}} style={{padding:"9px 12px",background:"#f3f4f6",border:"none",borderRadius:"8px",fontSize:"12px",color:"#888",cursor:"pointer"}}>Avbryt</button>
+          <button onClick={()=>{setStep("idle");setPreviewImg(null);}} style={{padding:"9px 12px",background:"#f3f4f6",border:"none",borderRadius:"8px",fontSize:"12px",color:"#888",cursor:"pointer"}}>Avbryt</button>
         </div>
       </>)}
     </div>)}
+
     {step==="texturing"&&(<div style={{background:"white",borderRadius:"10px",padding:"14px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       <div style={{width:"100%",height:"5px",background:"#eee",borderRadius:"3px",overflow:"hidden",marginBottom:"6px"}}><div style={{width:progress+"%",height:"100%",background:"#22c55e",transition:"width 0.5s"}}/></div>
       <p style={{fontSize:"11px",color:"#22c55e",margin:0}}>{statusMsg} {progress}%</p>
     </div>)}
+
     <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}>
       <button onClick={()=>dlUrl(proxySrc,"seg-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Ladda ner GLB</button>
       <button onClick={()=>setShowMR(true)} style={{padding:"7px 14px",background:"#0ea5e9",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Visa i MR</button>
