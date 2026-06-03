@@ -17,9 +17,7 @@ function parseGLB(buf: Buffer): { names: string[] } {
       }
     }
     if (names.length === 0 && json.meshes) {
-      for (const mesh of json.meshes) {
-        if (mesh.name) names.push(mesh.name);
-      }
+      for (const mesh of json.meshes) { if (mesh.name) names.push(mesh.name); }
     }
     return { names };
   } catch { return { names: [] }; }
@@ -51,7 +49,6 @@ export async function POST(req: NextRequest) {
     const partGLB = extractMeshToGLB(originalBuf, meshName);
     if (!partGLB) return NextResponse.json({ error: "mesh_not_found", meshName }, { status: 404 });
 
-    // Hämta STS token för GLB
     const stsRes = await fetch("https://api.tripo3d.ai/v2/openapi/upload/sts/token", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
@@ -62,32 +59,20 @@ export async function POST(req: NextRequest) {
     const sts = stsData?.data;
     if (!sts) return NextResponse.json({ error: "no_sts_data" }, { status: 502 });
 
-    // Ladda upp till S3 med AWS SDK
     const s3 = new AWS.S3Client({
       region: "us-west-2",
-      credentials: {
-        accessKeyId: sts.sts_ak,
-        secretAccessKey: sts.sts_sk,
-        sessionToken: sts.session_token,
-      },
+      credentials: { accessKeyId: sts.sts_ak, secretAccessKey: sts.sts_sk, sessionToken: sts.session_token },
       useAccelerateEndpoint: true,
     });
-
     await s3.send(new AWS.PutObjectCommand({
-      Bucket: sts.resource_bucket,
-      Key: sts.resource_uri,
-      Body: partGLB,
-      ContentType: "application/octet-stream",
+      Bucket: sts.resource_bucket, Key: sts.resource_uri,
+      Body: new Uint8Array(partGLB), ContentType: "application/octet-stream",
     }));
 
-    // Importera till Tripo
     const importRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "import_model",
-        file: { object: { bucket: sts.resource_bucket, key: sts.resource_uri } },
-      }),
+      body: JSON.stringify({ type: "import_model", file: { object: { bucket: sts.resource_bucket, key: sts.resource_uri } } }),
     });
     if (!importRes.ok) return NextResponse.json({ error: "import_failed", detail: await importRes.text() }, { status: 502 });
     const importData = await importRes.json();
@@ -97,57 +82,145 @@ export async function POST(req: NextRequest) {
   } catch (e) { return NextResponse.json({ error: String(e) }, { status: 500 }); }
 }
 
+// Extraherar EN mesh till en ny giltig GLB. Varje bufferView 4-byte-paddad.
 function extractMeshToGLB(originalBuf: Buffer, meshName: string): Buffer | null {
   try {
     const jsonChunkLen = originalBuf.readUInt32LE(12);
     const jsonStr = originalBuf.slice(20, 20 + jsonChunkLen).toString("utf8").replace(/\0/g, "");
     const gltf = JSON.parse(jsonStr);
+
     const nodeIdx = (gltf.nodes as any[])?.findIndex((n: any) => n.name === meshName && n.mesh !== undefined);
     if (nodeIdx === undefined || nodeIdx === -1) return null;
     const node = gltf.nodes[nodeIdx];
-    const meshIdx: number = node.mesh;
-    const mesh = gltf.meshes[meshIdx];
-    const accIndices = new Set<number>();
-    for (const prim of mesh.primitives as any[]) {
-      if (typeof prim.indices === "number") accIndices.add(prim.indices);
-      for (const v of Object.values(prim.attributes as Record<string, number>)) accIndices.add(v);
-    }
+    const mesh = gltf.meshes[node.mesh];
+
+    // BIN-chunk start
     const binStart = 12 + 8 + jsonChunkLen + 8;
     const binData = originalBuf.slice(binStart);
-    const bvIndices = new Set<number>();
-    for (const aIdx of Array.from(accIndices)) {
-      const acc = gltf.accessors?.[aIdx];
-      if (acc?.bufferView !== undefined) bvIndices.add(acc.bufferView as number);
+
+    // Samla accessors som meshen anvander
+    const accIndices: number[] = [];
+    for (const prim of mesh.primitives as any[]) {
+      if (typeof prim.indices === "number") accIndices.push(prim.indices);
+      for (const v of Object.values(prim.attributes as Record<string, number>)) accIndices.push(v as number);
     }
-    const bvArr = Array.from(bvIndices);
-    const chunks: Buffer[] = [];
-    const bvOffsets = new Map<number, number>();
-    let offset = 0;
-    for (const bvIdx of bvArr) {
-      const bv = gltf.bufferViews[bvIdx];
-      const chunk = binData.slice(bv.byteOffset as number, (bv.byteOffset as number) + (bv.byteLength as number));
-      chunks.push(chunk);
-      bvOffsets.set(bvIdx, offset);
-      offset += chunk.byteLength;
+    const uniqueAcc = Array.from(new Set(accIndices));
+
+    // Bygg nya accessors + bufferViews. En ny bufferView per accessor (enklast, alltid giltigt).
+    const newAccessors: any[] = [];
+    const newBufferViews: any[] = [];
+    const accMap = new Map<number, number>();
+    const binChunks: Buffer[] = [];
+    let binOffset = 0;
+
+    const pad4 = (n: number) => (4 - (n % 4)) % 4;
+
+    for (const aIdx of uniqueAcc) {
+      const acc = gltf.accessors[aIdx];
+      const bv = gltf.bufferViews[acc.bufferView];
+      const compSize = componentByteSize(acc.componentType);
+      const numComp = numComponents(acc.type);
+      const elemSize = compSize * numComp;
+      const count = acc.count;
+      const stride = bv.byteStride && bv.byteStride > 0 ? bv.byteStride : elemSize;
+
+      // Kopiera ut datan tightly-packed (ta bort ev. stride)
+      const srcBase = (bv.byteOffset || 0) + (acc.byteOffset || 0);
+      const out = Buffer.alloc(count * elemSize);
+      for (let i = 0; i < count; i++) {
+        binData.copy(out, i * elemSize, srcBase + i * stride, srcBase + i * stride + elemSize);
+      }
+
+      const bvIndex = newBufferViews.length;
+      newBufferViews.push({
+        buffer: 0,
+        byteOffset: binOffset,
+        byteLength: out.byteLength,
+        target: acc.type === "SCALAR" && acc.componentType >= 5121 && acc.componentType <= 5125 ? 34963 : 34962,
+      });
+      binChunks.push(out);
+      binOffset += out.byteLength;
+      // padding till 4 byte
+      const p = pad4(binOffset);
+      if (p) { binChunks.push(Buffer.alloc(p)); binOffset += p; }
+
+      const newAccIndex = newAccessors.length;
+      const newAcc: any = {
+        bufferView: bvIndex,
+        byteOffset: 0,
+        componentType: acc.componentType,
+        count: acc.count,
+        type: acc.type,
+      };
+      if (acc.min) newAcc.min = acc.min;
+      if (acc.max) newAcc.max = acc.max;
+      if (acc.normalized) newAcc.normalized = acc.normalized;
+      newAccessors.push(newAcc);
+      accMap.set(aIdx, newAccIndex);
     }
-    const newBin = Buffer.concat(chunks);
-    const newBVList = bvArr.map(bvIdx => { const bv = { ...gltf.bufferViews[bvIdx] }; bv.byteOffset = bvOffsets.get(bvIdx); bv.buffer = 0; return bv; });
-    const accArr = Array.from(accIndices);
-    const newAccMap = new Map<number, number>();
-    const newAccessors = accArr.map((aIdx, i) => { const acc = { ...gltf.accessors[aIdx] }; if (acc.bufferView !== undefined) acc.bufferView = bvArr.indexOf(acc.bufferView as number); newAccMap.set(aIdx, i); return acc; });
-    const newMesh = { name: mesh.name, primitives: (mesh.primitives as any[]).map((prim: any) => { const p: any = { attributes: {} }; if (typeof prim.indices === "number") p.indices = newAccMap.get(prim.indices); for (const [k, v] of Object.entries(prim.attributes as Record<string, number>)) p.attributes[k] = newAccMap.get(v); return p; }) };
-    const newGLTF: any = { asset: { version: "2.0" }, scene: 0, scenes: [{ nodes: [0] }], nodes: [{ name: meshName, mesh: 0 }], meshes: [newMesh], accessors: newAccessors, bufferViews: newBVList, buffers: [{ byteLength: newBin.byteLength }] };
-    const jsonOut = JSON.stringify(newGLTF);
-    const pad4 = (n: number) => Math.ceil(n / 4) * 4;
-    const jsonPadLen = pad4(jsonOut.length);
-    const binPadLen = pad4(newBin.byteLength);
-    const total = 12 + 8 + jsonPadLen + 8 + binPadLen;
-    const out = Buffer.alloc(total, 0);
-    out.writeUInt32LE(0x46546C67, 0); out.writeUInt32LE(2, 4); out.writeUInt32LE(total, 8);
-    out.writeUInt32LE(jsonPadLen, 12); out.writeUInt32LE(0x4E4F534A, 16);
-    Buffer.from(jsonOut).copy(out, 20);
-    out.writeUInt32LE(binPadLen, 20 + jsonPadLen); out.writeUInt32LE(0x004E4942, 24 + jsonPadLen);
-    newBin.copy(out, 28 + jsonPadLen);
+
+    const newPrimitives = (mesh.primitives as any[]).map((prim: any) => {
+      const p: any = { attributes: {} };
+      for (const [k, v] of Object.entries(prim.attributes as Record<string, number>)) {
+        p.attributes[k] = accMap.get(v as number);
+      }
+      if (typeof prim.indices === "number") p.indices = accMap.get(prim.indices);
+      if (typeof prim.mode === "number") p.mode = prim.mode;
+      return p;
+    });
+
+    const newBin = Buffer.concat(binChunks);
+    const newGLTF: any = {
+      asset: { version: "2.0", generator: "flodet-split" },
+      scene: 0,
+      scenes: [{ nodes: [0] }],
+      nodes: [{ name: meshName, mesh: 0 }],
+      meshes: [{ name: meshName, primitives: newPrimitives }],
+      accessors: newAccessors,
+      bufferViews: newBufferViews,
+      buffers: [{ byteLength: newBin.byteLength }],
+    };
+
+    let jsonOut = Buffer.from(JSON.stringify(newGLTF), "utf8");
+    const jsonPad = pad4(jsonOut.byteLength);
+    if (jsonPad) jsonOut = Buffer.concat([jsonOut, Buffer.alloc(jsonPad, 0x20)]); // space-padding
+    let binOut = newBin;
+    const binPad = pad4(binOut.byteLength);
+    if (binPad) binOut = Buffer.concat([binOut, Buffer.alloc(binPad)]);
+
+    const total = 12 + 8 + jsonOut.byteLength + 8 + binOut.byteLength;
+    const out = Buffer.alloc(total);
+    out.writeUInt32LE(0x46546C67, 0);
+    out.writeUInt32LE(2, 4);
+    out.writeUInt32LE(total, 8);
+    out.writeUInt32LE(jsonOut.byteLength, 12);
+    out.writeUInt32LE(0x4E4F534A, 16);
+    jsonOut.copy(out, 20);
+    const binHeaderPos = 20 + jsonOut.byteLength;
+    out.writeUInt32LE(binOut.byteLength, binHeaderPos);
+    out.writeUInt32LE(0x004E4942, binHeaderPos + 4);
+    binOut.copy(out, binHeaderPos + 8);
     return out;
   } catch { return null; }
 }
+
+function componentByteSize(ct: number): number {
+  switch (ct) {
+    case 5120: case 5121: return 1;
+    case 5122: case 5123: return 2;
+    case 5125: case 5126: return 4;
+    default: return 4;
+  }
+}
+function numComponents(type: string): number {
+  switch (type) {
+    case "SCALAR": return 1;
+    case "VEC2": return 2;
+    case "VEC3": return 3;
+    case "VEC4": return 4;
+    case "MAT2": return 4;
+    case "MAT3": return 9;
+    case "MAT4": return 16;
+    default: return 1;
+  }
+      }
