@@ -9,7 +9,14 @@ export async function POST(req: NextRequest) {
   try {
     const { originalTaskId, prompt, partNames } = await req.json();
     if (!originalTaskId || !prompt) return NextResponse.json({ error: "missing_params" }, { status: 400 });
-    const body: any = { type: "texture_model", original_model_task_id: originalTaskId, prompt };
+    // Tripo kraver prompten i texture_prompt.text - INTE top-level prompt
+    const body: any = {
+      type: "texture_model",
+      original_model_task_id: originalTaskId,
+      texture_prompt: { text: prompt },
+      texture: true,
+      pbr: true,
+    };
     if (partNames && Array.isArray(partNames) && partNames.length > 0) { body.part_names = partNames; }
     const taskRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
       method: "POST",
@@ -37,13 +44,11 @@ export async function GET(req: NextRequest) {
   const taskData = data?.data;
   const output = taskData?.output ?? null;
   const modelUrl = output?.model ?? output?.pbr_model ?? null;
-  // Exponera Tripos riktiga felinfo for diagnostik
   return NextResponse.json({
     taskId,
     status: taskData?.status,
     progress: taskData?.progress ?? 0,
     modelUrl,
-    tripoError: taskData?.error ?? taskData?.error_msg ?? taskData?.message ?? null,
-    raw: JSON.stringify(taskData ?? {}),
+    errorCode: taskData?.error_code ?? null,
   });
 }
