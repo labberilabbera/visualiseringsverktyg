@@ -119,9 +119,23 @@ function ModelViewer({modelUrl,uploadId}:{modelUrl:string;uploadId:number}){
     {showMR&&<MRCodeModal modelUrl={modelUrl} uploadId={uploadId} onClose={()=>setShowMR(false)}/>}
   </div>);}
 
+function PartInset({modelUrl,part,label}:{modelUrl:string;part:string;label:string}){
+  const ref=useRef<HTMLDivElement>(null);
+  const src="/api/tripo/split-glb?isolate="+encodeURIComponent(part)+"&modelUrl="+encodeURIComponent(modelUrl);
+  useEffect(()=>{
+    if(!ref.current)return;
+    const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer") as any;mv.setAttribute("src",src);mv.setAttribute("alt",label);mv.setAttribute("camera-controls","");mv.setAttribute("auto-rotate","");mv.setAttribute("rotation-per-second","40deg");mv.setAttribute("interaction-prompt","none");mv.setAttribute("shadow-intensity","0.6");mv.setAttribute("environment-image","neutral");mv.style.cssText="width:100%;height:100%;background:#ffffff;--poster-color:transparent;";ref.current.innerHTML="";ref.current.appendChild(mv);};
+    if(customElements.get("model-viewer"))build();else customElements.whenDefined("model-viewer").then(build);
+    return()=>{if(ref.current)ref.current.innerHTML="";};
+  },[src]);
+  return(<div style={{position:"absolute",top:"10px",right:"10px",width:"150px",height:"150px",borderRadius:"10px",overflow:"hidden",border:"2px solid #f59e0b",boxShadow:"0 4px 16px rgba(0,0,0,0.25)",background:"white"}}>
+    <div ref={ref} style={{width:"100%",height:"118px"}}/>
+    <div style={{height:"32px",display:"flex",alignItems:"center",justifyContent:"center",background:"#f59e0b",color:"white",fontSize:"11px",fontWeight:600,padding:"0 6px",textAlign:"center"}}>{label}</div>
+  </div>);
+}
+
 function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:string;segTaskId:string;projectId:string;uploadId:number;aiImage?:string}){
   const ref=useRef<HTMLDivElement>(null);
-  const mvRef=useRef<any>(null);
   const[currentUrl,setCurrentUrl]=useState(modelUrl);
   const fullProxy="/api/proxy?url="+encodeURIComponent(currentUrl);
   const[meshNames,setMeshNames]=useState<string[]>([]);
@@ -136,10 +150,6 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   const[statusMsg,setStatusMsg]=useState("");
   const[error,setError]=useState("");
   const[showMR,setShowMR]=useState(false);
-
-  // src som visas: isolerad del om focusPart satt, annars hela modellen
-  const isoSrc=focusPart?("/api/tripo/split-glb?isolate="+encodeURIComponent(focusPart)+"&modelUrl="+encodeURIComponent(currentUrl)):null;
-  const shownSrc=isoSrc||fullProxy;
 
   useEffect(()=>{
     if(!modelUrl)return;
@@ -161,18 +171,11 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   useEffect(()=>{
     if(!ref.current)return;
     if(!document.querySelector("script[data-mv]")){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
-    const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer") as any;mv.setAttribute("src",shownSrc);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.style.cssText="width:100%;height:300px;background:#f5e8e5;";mvRef.current=mv;ref.current.innerHTML="";ref.current.appendChild(mv);};
+    const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer") as any;mv.setAttribute("src",fullProxy);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.setAttribute("environment-image","neutral");mv.style.cssText="width:100%;height:300px;background:#f5e8e5;";ref.current.innerHTML="";ref.current.appendChild(mv);};
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
     return()=>{if(ref.current)ref.current.innerHTML="";};},[fullProxy]);
 
-  // byt bara src nar focusPart andras (utan att bygga om hela viewern)
-  useEffect(()=>{
-    if(mvRef.current){mvRef.current.setAttribute("src",shownSrc);}
-  },[shownSrc]);
-
-  function togglePart(name:string){
-    setSelParts(prev=>prev.includes(name)?prev.filter(p=>p!==name):[...prev,name]);
-  }
+  function togglePart(name:string){setSelParts(prev=>prev.includes(name)?prev.filter(p=>p!==name):[...prev,name]);}
   function partLabel(n:string){return partLabels[n]||n;}
   function selLabels(){return selParts.map(partLabel).join(", ");}
 
@@ -211,16 +214,18 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       setError("Timeout");setStep("prompting");
     }catch(e){setError(String(e));setStep("prompting");}}
 
+  const insetPart=focusPart||(selParts.length>0?selParts[selParts.length-1]:null);
+
   return(<div style={{width:"100%",maxWidth:"600px",display:"flex",flexDirection:"column",gap:"10px"}}>
     <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5",position:"relative"}}>
       <div ref={ref} style={{width:"100%",height:"300px"}}/>
-      {focusPart&&<div style={{position:"absolute",top:"8px",left:"8px",background:"#f59e0b",color:"white",fontSize:"11px",fontWeight:600,padding:"4px 10px",borderRadius:"20px",pointerEvents:"none"}}>Visar: {partLabel(focusPart)}</div>}
-      <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>{focusPart?"Hovrar du over en del visas bara den":"Dra for att rotera - Scroll for zoom"}</p>
+      {insetPart&&<PartInset modelUrl={currentUrl} part={insetPart} label={partLabel(insetPart)}/>}
+      <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra for att rotera - Scroll for zoom</p>
     </div>
 
     {(step==="idle"||step==="prompting")&&(<div style={{background:"white",borderRadius:"10px",padding:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       <p style={{margin:"0 0 4px",fontSize:"12px",fontWeight:600,color:"#333"}}>Valj delar att andra (en eller flera):</p>
-      <p style={{margin:"0 0 8px",fontSize:"11px",color:"#999"}}>Hovra over en del for att se den markerad i 3D. Klicka for att valja.</p>
+      <p style={{margin:"0 0 8px",fontSize:"11px",color:"#999"}}>Hovra over en del for att se den i rutan uppe till hoger. Klicka for att valja.</p>
       {loadingNames?<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Analyserar delar...</p>
       :meshNames.length>0?(<div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"10px"}}>
         {meshNames.map(n=>{const on=selParts.includes(n);return(<button key={n} onClick={()=>togglePart(n)} onMouseEnter={()=>setFocusPart(n)} onMouseLeave={()=>setFocusPart(null)} title={n} style={{padding:"6px 12px",background:on?"#f59e0b":"#f3f4f6",border:on?"2px solid #d97706":"2px solid transparent",borderRadius:"6px",fontSize:"11px",fontWeight:on?600:500,color:on?"white":"#555",cursor:"pointer"}}>{on?"\u2713 ":""}{partLabel(n)}</button>);})}
