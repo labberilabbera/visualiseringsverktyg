@@ -176,7 +176,9 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
     return()=>{if(ref.current)ref.current.innerHTML="";};},[fullProxy]);
 
   function togglePart(name:string){setSelParts(prev=>prev.includes(name)?prev.filter(p=>p!==name):[...prev,name]);}
-  function partLabel(n:string){return partLabels[n]||n;}
+  function partNum(n:string){const i=meshNames.indexOf(n);return "Del "+(i+1);}
+  function partHint(n:string){const g=partLabels[n];return g&&g!==n?g:"";}
+  function partLabel(n:string){return partNum(n);}
   function selLabels(){return selParts.map(partLabel).join(", ");}
 
   async function generatePreview(){
@@ -219,16 +221,16 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   return(<div style={{width:"100%",maxWidth:"600px",display:"flex",flexDirection:"column",gap:"10px"}}>
     <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5",position:"relative"}}>
       <div ref={ref} style={{width:"100%",height:"300px"}}/>
-      {insetPart&&<PartInset modelUrl={currentUrl} part={insetPart} label={partLabel(insetPart)}/>}
+      {insetPart&&<PartInset modelUrl={currentUrl} part={insetPart} label={partNum(insetPart)+(partHint(insetPart)?" ("+partHint(insetPart)+")":"")}/>}
       <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra for att rotera - Scroll for zoom</p>
     </div>
 
     {(step==="idle"||step==="prompting")&&(<div style={{background:"white",borderRadius:"10px",padding:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       <p style={{margin:"0 0 4px",fontSize:"12px",fontWeight:600,color:"#333"}}>Valj delar att andra (en eller flera):</p>
-      <p style={{margin:"0 0 8px",fontSize:"11px",color:"#999"}}>Hovra over en del for att se den i rutan uppe till hoger. Klicka for att valja.</p>
+      <p style={{margin:"0 0 8px",fontSize:"11px",color:"#999"}}>Hovra over en del for att se dess form i rutan uppe till hoger - formen visar exakt vad delen ar. Namnen (t.ex. Motorhuv) ar AI-gissningar och kan vara fel. Klicka for att valja.</p>
       {loadingNames?<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Analyserar delar...</p>
       :meshNames.length>0?(<div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"10px"}}>
-        {meshNames.map(n=>{const on=selParts.includes(n);return(<button key={n} onClick={()=>togglePart(n)} onMouseEnter={()=>setFocusPart(n)} onMouseLeave={()=>setFocusPart(null)} title={n} style={{padding:"6px 12px",background:on?"#f59e0b":"#f3f4f6",border:on?"2px solid #d97706":"2px solid transparent",borderRadius:"6px",fontSize:"11px",fontWeight:on?600:500,color:on?"white":"#555",cursor:"pointer"}}>{on?"\u2713 ":""}{partLabel(n)}</button>);})}
+        {meshNames.map(n=>{const on=selParts.includes(n);return(<button key={n} onClick={()=>togglePart(n)} onMouseEnter={()=>setFocusPart(n)} onMouseLeave={()=>setFocusPart(null)} title={n} style={{padding:"6px 12px",background:on?"#f59e0b":"#f3f4f6",border:on?"2px solid #d97706":"2px solid transparent",borderRadius:"6px",fontSize:"11px",fontWeight:on?600:500,color:on?"white":"#555",cursor:"pointer"}}>{on?"\u2713 ":""}{partNum(n)}{partHint(n)?<span style={{display:"block",fontSize:"9px",opacity:0.7,fontWeight:400}}>{partHint(n)}</span>:null}</button>);})}
       </div>):<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Inga delar hittades</p>}
       {selParts.length>0&&(<>
         <p style={{margin:"0 0 8px",fontSize:"11px",color:"#666"}}>Valda: <strong style={{color:"#d97706"}}>{selLabels()}</strong></p>
