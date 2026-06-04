@@ -24,12 +24,28 @@ function parseGLB(buf: Buffer): { names: string[] } {
 }
 
 export async function GET(req: NextRequest) {
-  const modelUrl = new URL(req.url).searchParams.get("modelUrl");
+  const url = new URL(req.url);
+  const modelUrl = url.searchParams.get("modelUrl");
+  const isolate = url.searchParams.get("isolate");
   if (!modelUrl) return NextResponse.json({ error: "missing_modelUrl" }, { status: 400 });
   try {
     const res = await fetch(modelUrl);
     if (!res.ok) return NextResponse.json({ error: "fetch_failed" }, { status: 502 });
     const buf = Buffer.from(await res.arrayBuffer());
+
+    // Isolerings-lage: returnera EN del som GLB-fil for forhandsvisning
+    if (isolate) {
+      const part = extractMeshToGLB(buf, isolate);
+      if (!part) return NextResponse.json({ error: "mesh_not_found" }, { status: 404 });
+      return new NextResponse(new Uint8Array(part), {
+        headers: {
+          "Content-Type": "model/gltf-binary",
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "public, max-age=3600",
+        },
+      });
+    }
+
     const { names } = parseGLB(buf);
     return NextResponse.json({ names });
   } catch (e) { return NextResponse.json({ error: String(e) }, { status: 500 }); }
