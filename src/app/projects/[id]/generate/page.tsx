@@ -121,12 +121,14 @@ function ModelViewer({modelUrl,uploadId}:{modelUrl:string;uploadId:number}){
 
 function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:string;segTaskId:string;projectId:string;uploadId:number;aiImage?:string}){
   const ref=useRef<HTMLDivElement>(null);
+  const mvRef=useRef<any>(null);
   const[currentUrl,setCurrentUrl]=useState(modelUrl);
-  const proxySrc="/api/proxy?url="+encodeURIComponent(currentUrl);
+  const fullProxy="/api/proxy?url="+encodeURIComponent(currentUrl);
   const[meshNames,setMeshNames]=useState<string[]>([]);
   const[partLabels,setPartLabels]=useState<Record<string,string>>({});
   const[loadingNames,setLoadingNames]=useState(true);
   const[selParts,setSelParts]=useState<string[]>([]);
+  const[focusPart,setFocusPart]=useState<string|null>(null);
   const[partPrompt,setPartPrompt]=useState("");
   const[previewImg,setPreviewImg]=useState<string|null>(null);
   const[step,setStep]=useState<"idle"|"prompting"|"previewing"|"texturing">("idle");
@@ -134,6 +136,10 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   const[statusMsg,setStatusMsg]=useState("");
   const[error,setError]=useState("");
   const[showMR,setShowMR]=useState(false);
+
+  // src som visas: isolerad del om focusPart satt, annars hela modellen
+  const isoSrc=focusPart?("/api/tripo/split-glb?isolate="+encodeURIComponent(focusPart)+"&modelUrl="+encodeURIComponent(currentUrl)):null;
+  const shownSrc=isoSrc||fullProxy;
 
   useEffect(()=>{
     if(!modelUrl)return;
@@ -155,9 +161,14 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   useEffect(()=>{
     if(!ref.current)return;
     if(!document.querySelector("script[data-mv]")){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
-    const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer") as any;mv.setAttribute("src",proxySrc);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.style.cssText="width:100%;height:300px;background:#f5e8e5;";ref.current.innerHTML="";ref.current.appendChild(mv);};
+    const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer") as any;mv.setAttribute("src",shownSrc);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.style.cssText="width:100%;height:300px;background:#f5e8e5;";mvRef.current=mv;ref.current.innerHTML="";ref.current.appendChild(mv);};
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
-    return()=>{if(ref.current)ref.current.innerHTML="";};},[proxySrc]);
+    return()=>{if(ref.current)ref.current.innerHTML="";};},[fullProxy]);
+
+  // byt bara src nar focusPart andras (utan att bygga om hela viewern)
+  useEffect(()=>{
+    if(mvRef.current){mvRef.current.setAttribute("src",shownSrc);}
+  },[shownSrc]);
 
   function togglePart(name:string){
     setSelParts(prev=>prev.includes(name)?prev.filter(p=>p!==name):[...prev,name]);
@@ -168,7 +179,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   async function generatePreview(){
     if(selParts.length===0||!partPrompt.trim())return;
     if(!aiImage){setError("Ingen AI-bild tillganglig");setStep("prompting");return;}
-    setStep("previewing");setPreviewImg(null);setError("");
+    setStep("previewing");setPreviewImg(null);setError("");setFocusPart(null);
     try{
       const prompt="Take this image and modify ONLY the "+selLabels()+" to look like: "+partPrompt+". Keep everything else exactly the same. Show the complete object.";
       const b64=aiImage.includes(",")?aiImage.split(",")[1]:aiImage;
@@ -201,16 +212,18 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
     }catch(e){setError(String(e));setStep("prompting");}}
 
   return(<div style={{width:"100%",maxWidth:"600px",display:"flex",flexDirection:"column",gap:"10px"}}>
-    <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5"}}>
+    <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5",position:"relative"}}>
       <div ref={ref} style={{width:"100%",height:"300px"}}/>
-      <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra for att rotera - Scroll for zoom</p>
+      {focusPart&&<div style={{position:"absolute",top:"8px",left:"8px",background:"#f59e0b",color:"white",fontSize:"11px",fontWeight:600,padding:"4px 10px",borderRadius:"20px",pointerEvents:"none"}}>Visar: {partLabel(focusPart)}</div>}
+      <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>{focusPart?"Hovrar du over en del visas bara den":"Dra for att rotera - Scroll for zoom"}</p>
     </div>
 
     {(step==="idle"||step==="prompting")&&(<div style={{background:"white",borderRadius:"10px",padding:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
-      <p style={{margin:"0 0 8px",fontSize:"12px",fontWeight:600,color:"#333"}}>Valj delar att andra (en eller flera):</p>
+      <p style={{margin:"0 0 4px",fontSize:"12px",fontWeight:600,color:"#333"}}>Valj delar att andra (en eller flera):</p>
+      <p style={{margin:"0 0 8px",fontSize:"11px",color:"#999"}}>Hovra over en del for att se den markerad i 3D. Klicka for att valja.</p>
       {loadingNames?<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Analyserar delar...</p>
       :meshNames.length>0?(<div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"10px"}}>
-        {meshNames.map(n=>{const on=selParts.includes(n);return(<button key={n} onClick={()=>togglePart(n)} title={n} style={{padding:"6px 12px",background:on?"#f59e0b":"#f3f4f6",border:on?"2px solid #d97706":"2px solid transparent",borderRadius:"6px",fontSize:"11px",fontWeight:on?600:500,color:on?"white":"#555",cursor:"pointer"}}>{on?"\u2713 ":""}{partLabel(n)}</button>);})}
+        {meshNames.map(n=>{const on=selParts.includes(n);return(<button key={n} onClick={()=>togglePart(n)} onMouseEnter={()=>setFocusPart(n)} onMouseLeave={()=>setFocusPart(null)} title={n} style={{padding:"6px 12px",background:on?"#f59e0b":"#f3f4f6",border:on?"2px solid #d97706":"2px solid transparent",borderRadius:"6px",fontSize:"11px",fontWeight:on?600:500,color:on?"white":"#555",cursor:"pointer"}}>{on?"\u2713 ":""}{partLabel(n)}</button>);})}
       </div>):<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Inga delar hittades</p>}
       {selParts.length>0&&(<>
         <p style={{margin:"0 0 8px",fontSize:"11px",color:"#666"}}>Valda: <strong style={{color:"#d97706"}}>{selLabels()}</strong></p>
@@ -241,7 +254,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
     </div>)}
 
     <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}>
-      <button onClick={()=>dlUrl(proxySrc,"seg-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Ladda ner GLB</button>
+      <button onClick={()=>dlUrl(fullProxy,"seg-modell.glb")} style={{padding:"7px 14px",background:"#555",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Ladda ner GLB</button>
       <button onClick={()=>setShowMR(true)} style={{padding:"7px 14px",background:"#0ea5e9",border:"none",borderRadius:"8px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer"}}>Visa i MR</button>
     </div>
     {showMR&&<MRCodeModal modelUrl={currentUrl} uploadId={uploadId} onClose={()=>setShowMR(false)}/>}
