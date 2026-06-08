@@ -139,6 +139,8 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   const[currentUrl,setCurrentUrl]=useState(modelUrl);
   const fullProxy="/api/proxy?url="+encodeURIComponent(currentUrl);
   const[meshNames,setMeshNames]=useState<string[]>([]);
+  const meshNamesRef=useRef<string[]>([]);
+  useEffect(()=>{meshNamesRef.current=meshNames;},[meshNames]);
   const[partLabels,setPartLabels]=useState<Record<string,string>>({});
   const[loadingNames,setLoadingNames]=useState(true);
   const[selParts,setSelParts]=useState<string[]>([]);
@@ -171,7 +173,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   useEffect(()=>{
     if(!ref.current)return;
     if(!document.querySelector("script[data-mv]")){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
-    const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer") as any;mv.setAttribute("src",fullProxy);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.setAttribute("environment-image","neutral");mv.style.cssText="width:100%;height:300px;background:#f5e8e5;";ref.current.innerHTML="";ref.current.appendChild(mv);};
+    const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer") as any;mv.setAttribute("src",fullProxy);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.setAttribute("environment-image","neutral");mv.style.cssText="width:100%;height:300px;background:#f5e8e5;";mv.addEventListener("click",(e:MouseEvent)=>{try{const r=mv.getBoundingClientRect();const hit=mv.surfaceFromPoint(e.clientX-r.left,e.clientY-r.top);if(hit){const ni=parseInt(hit.split(" ")[0]);const name=meshNamesRef.current[ni];if(name){setSelParts(prev=>prev.includes(name)?prev.filter(p=>p!==name):[...prev,name]);setFocusPart(name);}}}catch(err){}});ref.current.innerHTML="";ref.current.appendChild(mv);};
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
     return()=>{if(ref.current)ref.current.innerHTML="";};},[fullProxy]);
 
@@ -227,7 +229,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
 
     {(step==="idle"||step==="prompting")&&(<div style={{background:"white",borderRadius:"10px",padding:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
       <p style={{margin:"0 0 4px",fontSize:"12px",fontWeight:600,color:"#333"}}>Valj delar att andra (en eller flera):</p>
-      <p style={{margin:"0 0 8px",fontSize:"11px",color:"#999"}}>Hovra over en del for att se dess form i rutan uppe till hoger - formen visar exakt vad delen ar. Namnen (t.ex. Motorhuv) ar AI-gissningar och kan vara fel. Klicka for att valja.</p>
+      <p style={{margin:"0 0 8px",fontSize:"11px",color:"#999"}}>Klicka direkt pa modellen for att valja en del - eller anvand knapparna nedan. Hovra over en knapp for att se delens form i rutan uppe till hoger. Namnen ar AI-gissningar och kan vara fel - formen visar sanningen.</p>
       {loadingNames?<p style={{fontSize:"11px",color:"#aaa",margin:0}}>Analyserar delar...</p>
       :meshNames.length>0?(<div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"10px"}}>
         {meshNames.map(n=>{const on=selParts.includes(n);return(<button key={n} onClick={()=>togglePart(n)} onMouseEnter={()=>setFocusPart(n)} onMouseLeave={()=>setFocusPart(null)} title={n} style={{padding:"6px 12px",background:on?"#f59e0b":"#f3f4f6",border:on?"2px solid #d97706":"2px solid transparent",borderRadius:"6px",fontSize:"11px",fontWeight:on?600:500,color:on?"white":"#555",cursor:"pointer"}}>{on?"\u2713 ":""}{partNum(n)}{partHint(n)?<span style={{display:"block",fontSize:"9px",opacity:0.7,fontWeight:400}}>{partHint(n)}</span>:null}</button>);})}
