@@ -1,4 +1,5 @@
 "use client";
+import ThreePartViewer from "./ThreePartViewer";
 import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 type Tab="ai"|"skiss"|"3d";
@@ -170,12 +171,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       }).catch(()=>setLoadingNames(false));
   },[modelUrl,aiImage]);
 
-  useEffect(()=>{
-    if(!ref.current)return;
-    if(!document.querySelector("script[data-mv]")){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
-    const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer") as any;mv.setAttribute("src",fullProxy);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.setAttribute("environment-image","neutral");mv.style.cssText="width:100%;height:300px;background:#f5e8e5;";mv.addEventListener("click",(e:MouseEvent)=>{try{const r=mv.getBoundingClientRect();const hit=mv.surfaceFromPoint(e.clientX-r.left,e.clientY-r.top);if(hit){const ni=parseInt(hit.split(" ")[0]);const name=meshNamesRef.current[ni];if(name){setSelParts(prev=>prev.includes(name)?prev.filter(p=>p!==name):[...prev,name]);setFocusPart(name);}}}catch(err){}});ref.current.innerHTML="";ref.current.appendChild(mv);};
-    if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
-    return()=>{if(ref.current)ref.current.innerHTML="";};},[fullProxy]);
+  
 
   function togglePart(name:string){setSelParts(prev=>prev.includes(name)?prev.filter(p=>p!==name):[...prev,name]);}
   function partNum(n:string){const i=meshNames.indexOf(n);return "Del "+(i+1);}
@@ -222,7 +218,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
 
   return(<div style={{width:"100%",maxWidth:"600px",display:"flex",flexDirection:"column",gap:"10px"}}>
     <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5",position:"relative"}}>
-      <div ref={ref} style={{width:"100%",height:"300px"}}/>
+      <ThreePartViewer modelUrl={currentUrl} selected={selParts} onToggle={togglePart} onHover={setFocusPart} height={300}/>
       {insetPart&&<PartInset modelUrl={currentUrl} part={insetPart} label={partNum(insetPart)+(partHint(insetPart)?" ("+partHint(insetPart)+")":"")}/>}
       <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra for att rotera - Scroll for zoom</p>
     </div>
