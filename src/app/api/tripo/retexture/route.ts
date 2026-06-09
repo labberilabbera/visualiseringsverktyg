@@ -1,23 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
+import AWS from "@aws-sdk/client-s3";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   const key = process.env.TRIPO_API_KEY;
   if (!key) return NextResponse.json({ error: "no_key" }, { status: 500 });
   try {
-    const { originalTaskId, prompt, partNames } = await req.json();
-    if (!originalTaskId || !prompt) return NextResponse.json({ error: "missing_params" }, { status: 400 });
-    // Tripo kraver prompten i texture_prompt.text - INTE top-level prompt
+    const { originalTaskId, prompt, partNames, previewImage } = await req.json();
+    if (!originalTaskId) return NextResponse.json({ error: "missing_params" }, { status: 400 });
+
     const body: any = {
       type: "texture_model",
       original_model_task_id: originalTaskId,
-      texture_prompt: { text: prompt },
       texture: true,
       pbr: true,
     };
-    if (partNames && Array.isArray(partNames) && partNames.length > 0) { body.part_names = partNames; }
+
+    // Om vi har en forhandsbild: ladda upp den och texturera HELA modellen mot bilden
+    // (da bevaras alla delar - ingen gra modell - och andringen syns)
+    if (previewImage) {
+      const b64 = previewImage.includes(",") ? previewImage.split(",")[1] : previewImage;
+      const imgBuf = Buffer.from(b64, "base64");
+
+      const stsRes = await fetch("https://api.tripo3d.ai/v2/openapi/upload/sts/token", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "jpeg" }),
+      });
+      if (!stsRes.ok) return NextResponse.json({ error: "sts_failed", detail: await stsRes.text() }, { status: 502 });
+      const sts = (await stsRes.json())?.data;
+      if (!sts) return NextResponse.json({ error: "no_sts_data" }, { status: 502 });
+
+      const s3 = new AWS.S3Client({
+        region: "us-west-2",
+        credentials: { accessKeyId: sts.sts_ak, secretAccessKey: sts.sts_sk, sessionToken: sts.session_token },
+        useAccelerateEndpoint: true,
+      });
+      await s3.send(new AWS.PutObjectCommand({
+        Bucket: sts.resource_bucket, Key: sts.resource_uri,
+        Body: new Uint8Array(imgBuf), ContentType: "image/jpeg",
+      }));
+
+      body.texture_prompt = { image: { object: { bucket: sts.resource_bucket, key: sts.resource_uri } } };
+      // INGA part_names -> hela modellen texturera mot bilden
+    } else if (prompt) {
+      // Textfallback: texturera valda delar (eller hela om inga angivna)
+      body.texture_prompt = { text: prompt };
+      if (partNames && Array.isArray(partNames) && partNames.length > 0) body.part_names = partNames;
+    } else {
+      return NextResponse.json({ error: "no_prompt_or_image" }, { status: 400 });
+    }
+
     const taskRes = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
