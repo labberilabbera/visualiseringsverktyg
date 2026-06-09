@@ -198,7 +198,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
     if(selParts.length===0||!partPrompt.trim())return;
     setStep("texturing");setProgress(10);setError("");setStatusMsg("Texturerar "+selLabels()+"...");
     try{
-      const txRes=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:segTaskId,prompt:partPrompt,partNames:selParts})});
+      const txRes=await fetch("/api/tripo/retexture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({originalTaskId:segTaskId,previewImage:previewImg})});
       const txJson=await txRes.json();
       if(!txJson.taskId){setError(txJson.error||"Texturering misslyckades");setStep("prompting");return;}
       for(let a=0;a<90;a++){
