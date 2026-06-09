@@ -25,14 +25,13 @@ export default function ThreePartViewer({ modelUrl, selected, onToggle, onHover,
   function applyHighlights() {
     for (const m of meshesRef.current) {
       const name = m.name;
-      const mat = m.material as THREE.MeshStandardMaterial;
+      const mat = m.material as any;
       if (!mat) continue;
       if (selectedRef.current.includes(name)) {
-        mat.emissive = new THREE.Color(0xf59e0b);
-        mat.emissiveIntensity = 0.5;
+        if (mat.emissive) { mat.emissive.setHex(0xf59e0b); mat.emissiveIntensity = 0.45; }
       } else {
-        mat.emissive = new THREE.Color(0x000000);
-        mat.emissiveIntensity = 0;
+        const orig = (m as any).userData.origEmissive;
+        if (mat.emissive) { if (orig) { mat.emissive.copy(orig); } else { mat.emissive.setHex(0x000000); } mat.emissiveIntensity = orig ? 1 : 0; }
       }
     }
   }
@@ -80,8 +79,8 @@ export default function ThreePartViewer({ modelUrl, selected, onToggle, onHover,
       const meshes: THREE.Mesh[] = [];
       root.traverse((o: any) => {
         if (o.isMesh) {
-          o.material = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.1, roughness: 0.8 });
           if (o.name && o.name.indexOf("_mesh_") !== -1) { o.name = o.name.replace("_mesh_", "_part_"); }
+          if (o.material) { (o as any).userData.origEmissive = (o.material as any).emissive ? (o.material as any).emissive.clone() : null; }
           meshes.push(o);
         }
       });
