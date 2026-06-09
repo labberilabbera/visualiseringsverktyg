@@ -81,6 +81,7 @@ export default function ThreePartViewer({ modelUrl, selected, onToggle, onHover,
       root.traverse((o: any) => {
         if (o.isMesh) {
           o.material = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.1, roughness: 0.8 });
+          if (o.name && o.name.indexOf("_mesh_") !== -1) { o.name = o.name.replace("_mesh_", "_part_"); }
           meshes.push(o);
         }
       });
