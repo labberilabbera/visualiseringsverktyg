@@ -25,13 +25,17 @@ export default function ThreePartViewer({ modelUrl, selected, onToggle, onHover,
   function applyHighlights() {
     for (const m of meshesRef.current) {
       const name = m.name;
-      const mat = m.material as any;
-      if (!mat) continue;
-      if (selectedRef.current.includes(name)) {
-        if (mat.emissive) { mat.emissive.setHex(0xf59e0b); mat.emissiveIntensity = 0.45; }
-      } else {
-        const orig = (m as any).userData.origEmissive;
-        if (mat.emissive) { if (orig) { mat.emissive.copy(orig); } else { mat.emissive.setHex(0x000000); } mat.emissiveIntensity = orig ? 1 : 0; }
+      const want = selectedRef.current.includes(name);
+      const existing = (m as any).userData.hlOverlay;
+      if (want && !existing) {
+        const ov = new THREE.Mesh(m.geometry, new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.45, depthTest: true }));
+        ov.renderOrder = 999;
+        m.add(ov);
+        (m as any).userData.hlOverlay = ov;
+      } else if (!want && existing) {
+        m.remove(existing);
+        (existing.material as any).dispose && (existing.material as any).dispose();
+        (m as any).userData.hlOverlay = null;
       }
     }
   }
