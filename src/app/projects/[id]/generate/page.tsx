@@ -12,7 +12,7 @@ export default function GeneratePage(){
   const[tab,setTab]=useState<Tab>(()=>{try{return (localStorage.getItem("tab_"+projectId) as Tab)||"ai";}catch{return "ai";}});const[uploads,setUploads]=useState<Upload[]>([]);const[selected,setSelected]=useState(()=>{try{return parseInt(localStorage.getItem("sel_"+projectId)||"0")||0;}catch{return 0;}});
   const[prompt,setPrompt]=useState("");const[ready,setReady]=useState(false);const[editingPrompt,setEditingPrompt]=useState(false);
   const uploadsRef=useRef<Upload[]>([]);useEffect(()=>{
-    function openLightbox(src){
+    function openLightbox(src:string){
       const ov=document.createElement("div");
       ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:99999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:20px;";
       const im=document.createElement("img");
@@ -28,7 +28,7 @@ export default function GeneratePage(){
     function decorate(){
       const imgs=Array.from(document.querySelectorAll("img"));
       for(const img of imgs){
-        const el=img;
+        const el=img as HTMLImageElement;
         if(el.dataset.zoomReady)continue;
         if(el.naturalWidth&&el.naturalWidth<80)continue;
         if(el.width&&el.width<80)continue;
