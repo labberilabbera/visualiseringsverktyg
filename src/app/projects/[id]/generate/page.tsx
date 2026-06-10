@@ -11,7 +11,46 @@ export default function GeneratePage(){
   const router=useRouter();const params=useParams();const projectId=params?.id as string;
   const[tab,setTab]=useState<Tab>(()=>{try{return (localStorage.getItem("tab_"+projectId) as Tab)||"ai";}catch{return "ai";}});const[uploads,setUploads]=useState<Upload[]>([]);const[selected,setSelected]=useState(()=>{try{return parseInt(localStorage.getItem("sel_"+projectId)||"0")||0;}catch{return 0;}});
   const[prompt,setPrompt]=useState("");const[ready,setReady]=useState(false);const[editingPrompt,setEditingPrompt]=useState(false);
-  const uploadsRef=useRef<Upload[]>([]);useEffect(()=>{uploadsRef.current=uploads;},[uploads]);useEffect(()=>{try{localStorage.setItem("tab_"+projectId,tab);}catch{}},[tab,projectId]);useEffect(()=>{try{localStorage.setItem("sel_"+projectId,String(selected));}catch{}},[selected,projectId]);
+  const uploadsRef=useRef<Upload[]>([]);useEffect(()=>{
+    function openLightbox(src){
+      const ov=document.createElement("div");
+      ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:99999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:20px;";
+      const im=document.createElement("img");
+      im.src=src;
+      im.style.cssText="max-width:95%;max-height:95%;object-fit:contain;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,0.5);";
+      const cl=document.createElement("div");
+      cl.textContent="X";
+      cl.style.cssText="position:absolute;top:18px;right:24px;color:white;font-size:28px;font-weight:700;cursor:pointer;line-height:1;";
+      ov.appendChild(im);ov.appendChild(cl);
+      ov.addEventListener("click",()=>ov.remove());
+      document.body.appendChild(ov);
+    }
+    function decorate(){
+      const imgs=Array.from(document.querySelectorAll("img"));
+      for(const img of imgs){
+        const el=img;
+        if(el.dataset.zoomReady)continue;
+        if(el.naturalWidth&&el.naturalWidth<80)continue;
+        if(el.width&&el.width<80)continue;
+        el.dataset.zoomReady="1";
+        const wrap=el.parentElement;
+        if(!wrap)continue;
+        if(getComputedStyle(wrap).position==="static")wrap.style.position="relative";
+        const btn=document.createElement("button");
+        btn.type="button";
+        btn.innerHTML="&#128269;";
+        btn.title="Visa i helskarm";
+        btn.style.cssText="position:absolute;top:6px;right:6px;width:28px;height:28px;border:none;border-radius:6px;background:rgba(0,0,0,0.55);color:white;font-size:14px;cursor:pointer;z-index:50;display:flex;align-items:center;justify-content:center;padding:0;";
+        btn.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();openLightbox(el.currentSrc||el.src);});
+        wrap.appendChild(btn);
+      }
+    }
+    decorate();
+    const iv=setInterval(decorate,1500);
+    return function(){clearInterval(iv);};
+  },[]);
+
+  useEffect(()=>{uploadsRef.current=uploads;},[uploads]);useEffect(()=>{try{localStorage.setItem("tab_"+projectId,tab);}catch{}},[tab,projectId]);useEffect(()=>{try{localStorage.setItem("sel_"+projectId,String(selected));}catch{}},[selected,projectId]);
   useEffect(()=>{fetch("/api/auth/me").then(r=>r.json()).then(d=>{if(d.error)router.replace("/login");});fetch("/api/projects/"+projectId).then(r=>r.json()).then(d=>setPrompt(d.prompt||""));loadUploads();},[projectId,router]);
   async function loadUploads(){const res=await fetch("/api/projects/"+projectId+"/uploads");if(!res.ok)return;const data=await res.json();setUploads(data.map((u:any)=>({id:u.id,filename:u.filename,mimetype:u.mimetype,aiImage:u.ai_image||undefined,model3d:u.model3d_url||undefined,tripoTaskId:u.tripo_task_id||undefined,segmentedModel:u.segmented_model_url||undefined,segTaskId:u.seg_task_id||undefined,genState:(u.ai_image?"done":"idle")as GenState,tripoState:u.model3d_url?"done":undefined})));setReady(true);}
   async function generateAll(){if(!prompt.trim())return;await Promise.all(uploadsRef.current.map((_,i)=>generateOne(i)));}
