@@ -194,6 +194,31 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
     }catch(e){setError("Natverksfel: "+String(e));setStep("prompting");}
   }
 
+  async function isolatePart(){
+    if(selParts.length!==1){setError("Valj exakt en del for att gora ett eget objekt");return;}
+    const part=selParts[0];
+    setStep("texturing");setProgress(5);setError("");setStatusMsg("Skapar eget objekt av "+part+"...");
+    try{
+      // 1) Extrahera delen och importera till Tripo som egen modell
+      const splitRes=await fetch("/api/tripo/split-glb",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({modelUrl:currentUrl,meshName:part})});
+      const sj=await splitRes.json();
+      if(!sj.taskId){setError(sj.error||"Kunde inte extrahera delen");setStep("idle");return;}
+      // 2) Polla import
+      let modelUrl=null;
+      for(let a=0;a<30;a++){await new Promise(r=>setTimeout(r,3000));const pd=await(await fetch("/api/tripo/generate?taskId="+sj.taskId)).json();setProgress(5+Math.round((a/30)*60));if(pd.status==="success"&&pd.modelUrl){modelUrl=pd.modelUrl;break;}if(pd.status==="failed"){setError("Import misslyckades");setStep("idle");return;}}
+      if(!modelUrl){setError("Timeout vid import");setStep("idle");return;}
+      // 3) Skapa ny upload
+      setStatusMsg("Sparar som nytt objekt...");setProgress(80);
+      const up=await fetch("/api/projects/"+projectId+"/uploads",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filename:part+".glb",mimetype:"model/gltf-binary",data:""})}).then(r=>r.json());
+      const newId=up.id||up.upload?.id||up.uploadId;
+      if(!newId){setError("Kunde inte skapa nytt objekt");setStep("idle");return;}
+      // 4) Satt model3d_url pa nya uploaden
+      await fetch("/api/projects/"+projectId+"/uploads/"+newId+"/data",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({model3dUrl:modelUrl})});
+      setProgress(100);setStatusMsg("Klart! Nytt objekt skapat.");
+      setTimeout(()=>{window.location.reload();},1200);
+    }catch(e){setError(String(e));setStep("idle");}
+  }
+
   async function applyTexture(){
     if(selParts.length===0||!partPrompt.trim())return;
     setStep("texturing");setProgress(10);setError("");setStatusMsg("Texturerar "+selLabels()+"...");
@@ -235,6 +260,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
         <div style={{display:"flex",gap:"8px"}}>
           <input value={partPrompt} onChange={e=>setPartPrompt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&generatePreview()} placeholder={"Beskriv detaljerat: farg, material, monster, finish (t.ex. blank rod laderkladsel)..."} style={{flex:1,padding:"8px 10px",borderRadius:"7px",border:"1px solid #ddd",fontSize:"12px",outline:"none"}}/>
           <button onClick={generatePreview} disabled={!partPrompt.trim()} style={{padding:"8px 14px",background:"#1a56db",border:"none",borderRadius:"7px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer",whiteSpace:"nowrap"}}>Forhandsgranska</button>
+          {selParts.length===1&&<button onClick={isolatePart} style={{padding:"8px 14px",background:"#7c3aed",border:"none",borderRadius:"7px",fontSize:"12px",fontWeight:500,color:"white",cursor:"pointer",whiteSpace:"nowrap"}}>Gor till eget objekt</button>}
         </div>
       </>)}
       {error&&<p style={{color:"#ef4444",fontSize:"11px",margin:"6px 0 0"}}>{error}</p>}
