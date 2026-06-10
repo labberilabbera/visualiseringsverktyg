@@ -248,7 +248,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
       if(!modelUrl){setError("Timeout vid import");setStep("idle");return;}
       // 3) Skapa ny upload
       setStatusMsg("Sparar som nytt objekt...");setProgress(80);
-      const up=await fetch("/api/projects/"+projectId+"/uploads",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filename:part+".glb",mimetype:"model/gltf-binary",data:""})}).then(r=>r.json());
+      const up=await fetch("/api/projects/"+projectId+"/uploads",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filename:part+".glb",mimetype:"model/gltf-binary",data:"data:model/gltf-binary;base64,Zm9v"})}).then(r=>r.json());
       const newId=up.id||up.upload?.id||up.uploadId;
       if(!newId){setError("Kunde inte skapa nytt objekt");setStep("idle");return;}
       // 4) Satt model3d_url pa nya uploaden
