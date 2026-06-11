@@ -142,7 +142,6 @@ function MRCodeModal({modelUrl,uploadId,onClose}:{modelUrl:string;uploadId:numbe
 function ModelViewer({modelUrl,uploadId}:{modelUrl:string;uploadId:number}){
   const ref=useRef<HTMLDivElement>(null);const proxySrc="/api/proxy?url="+encodeURIComponent(modelUrl);
   const[showMR,setShowMR]=useState(false);
-  const[segFull,setSegFull]=useState(false);
   useEffect(()=>{if(!ref.current)return;if(!document.querySelector('script[data-mv]')){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
     const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer")as any;mv.setAttribute("src",proxySrc);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.style.cssText="width:100%;height:360px;background:#f5e8e5;";ref.current.innerHTML="";ref.current.appendChild(mv);};
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
@@ -185,6 +184,7 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   const[partLabels,setPartLabels]=useState<Record<string,string>>({});
   const[loadingNames,setLoadingNames]=useState(true);
   const[selParts,setSelParts]=useState<string[]>([]);
+  const[segFull,setSegFull]=useState(false);
   const[focusPart,setFocusPart]=useState<string|null>(null);
   const[partPrompt,setPartPrompt]=useState("");
   const[previewImg,setPreviewImg]=useState<string|null>(null);
