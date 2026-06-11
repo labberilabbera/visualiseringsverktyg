@@ -142,6 +142,7 @@ function MRCodeModal({modelUrl,uploadId,onClose}:{modelUrl:string;uploadId:numbe
 function ModelViewer({modelUrl,uploadId}:{modelUrl:string;uploadId:number}){
   const ref=useRef<HTMLDivElement>(null);const proxySrc="/api/proxy?url="+encodeURIComponent(modelUrl);
   const[showMR,setShowMR]=useState(false);
+  const[segFull,setSegFull]=useState(false);
   useEffect(()=>{if(!ref.current)return;if(!document.querySelector('script[data-mv]')){const s=document.createElement("script");s.type="module";s.setAttribute("data-mv","1");s.src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js";document.head.appendChild(s);}
     const build=()=>{if(!ref.current)return;const mv=document.createElement("model-viewer")as any;mv.setAttribute("src",proxySrc);mv.setAttribute("alt","3D");mv.setAttribute("camera-controls","");mv.setAttribute("shadow-intensity","1");mv.style.cssText="width:100%;height:360px;background:#f5e8e5;";ref.current.innerHTML="";ref.current.appendChild(mv);};
     if(customElements.get("model-viewer"))build();else{customElements.whenDefined("model-viewer").then(build);setTimeout(build,3000);}
@@ -281,8 +282,9 @@ function SegViewer({modelUrl,segTaskId,projectId,uploadId,aiImage}:{modelUrl:str
   
 
   return(<div style={{width:"100%",maxWidth:"600px",display:"flex",flexDirection:"column",gap:"10px"}}>
-    <div style={{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5",position:"relative"}}>
-      <ThreePartViewer modelUrl={currentUrl} selected={selParts} onToggle={togglePart} onHover={setFocusPart} height={300}/>
+    <div style={segFull?{position:"fixed",inset:0,zIndex:9000,background:"#f5e8e5",display:"flex",flexDirection:"column"}:{borderRadius:"12px",overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.15)",background:"#f5e8e5",position:"relative"}}>
+      <button onClick={()=>setSegFull(f=>!f)} title={segFull?"Stang":"Forstora"} style={{position:"absolute",top:"8px",left:"8px",zIndex:9100,width:"30px",height:"30px",border:"none",borderRadius:"6px",background:"rgba(0,0,0,0.55)",color:"white",fontSize:"15px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>{segFull?"\u2715":"\u26F6"}</button>
+      <ThreePartViewer modelUrl={currentUrl} selected={selParts} onToggle={togglePart} onHover={setFocusPart} height={segFull?Math.round((typeof window!=="undefined"?window.innerHeight:600)-60):300}/>
       
       <p style={{textAlign:"center",fontSize:"11px",color:"#aaa",padding:"6px 0",margin:0}}>Dra for att rotera - Scroll for zoom</p>
     </div>
